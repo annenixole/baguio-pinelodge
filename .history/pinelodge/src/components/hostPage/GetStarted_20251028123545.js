@@ -752,215 +752,31 @@ export default function GetStarted() {
       )}
 
       {step === 2 && (
-        <Box sx={{ py: 8, px: 3, backgroundColor: '#f5f5f5', minHeight: '100vh' }}>
-          <Container maxWidth="md">
-            <Box sx={{ textAlign: 'center', mb: 5 }}>
+        <Box sx={{ textAlign: 'center', mt: 8 }}>
+          <Card
+            sx={{
+              display: 'inline-block',
+              p: 4,
+              borderRadius: 3,
+              boxShadow: 3,
+              maxWidth: 400,
+            }}
+          >
+            <CardContent>
               <Typography
-                variant="h3"
-                sx={{
-                  fontWeight: 700,
-                  color: '#1C1C1C',
-                  mb: 2,
-                  fontSize: { xs: '28px', md: '36px' },
-                }}
+                variant="h5"
+                sx={{ fontWeight: 600, color: '#30410D', mb: 1 }}
               >
-                Start your hosting journey today
+                Activate Your Host Account
               </Typography>
-              <Typography
-                variant="body1"
-                sx={{
-                  color: '#6B6B6B',
-                  fontSize: '16px',
-                  lineHeight: 1.6,
-                }}
-              >
-                Get full access to all hosting features with our 3 month subscription plan.
+              <Typography variant="body2" sx={{ color: 'text.secondary', mb: 3 }}>
+                A yearly ₱3,000 subscription gives you access to host tools,
+                guest visibility, and exclusive PineLodge support.
               </Typography>
-            </Box>
-
-            <Card
-              sx={{
-                p: { xs: 4, md: 5 },
-                borderRadius: 4,
-                boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
-                backgroundColor: '#fff',
-              }}
-            >
-              <Typography
-                variant="h4"
-                sx={{
-                  fontWeight: 700,
-                  color: '#1C1C1C',
-                  textAlign: 'center',
-                  mb: 2,
-                  fontSize: { xs: '24px', md: '28px' },
-                }}
-              >
-                3 Month Subscription Plan
-              </Typography>
-              
-              <Box sx={{ textAlign: 'center', mb: 3 }}>
-                <Typography
-                  component="span"
-                  sx={{
-                    fontSize: { xs: '40px', md: '48px' },
-                    fontWeight: 700,
-                    color: '#DE7001',
-                  }}
-                >
-                  ₱3,000
-                </Typography>
-                <Typography
-                  component="span"
-                  sx={{
-                    fontSize: '18px',
-                    color: '#757575',
-                    ml: 1,
-                  }}
-                >
-                  / quarterly
-                </Typography>
-              </Box>
-
-              <Divider sx={{ mb: 4 }} />
-
-              <Typography
-                variant="h6"
-                sx={{
-                  fontWeight: 600,
-                  color: '#1C1C1C',
-                  mb: 3,
-                  fontSize: '18px',
-                }}
-              >
-                What's included:
-              </Typography>
-
-              <Box sx={{ mb: 4 }}>
-                {[
-                  'Unlimited property listings',
-                  'Advanced booking management tools',
-                  'Priority 24/7 customer support',
-                  'Comprehensive analytics dashboard',
-                  'Host protection insurance up to $1M',
-                  'Verified guest screening',
-                  '2% platform fee on all bookings',
-                  'Marketing tools and promotion features',
-                ].map((feature, index) => (
-                  <Box
-                    key={index}
-                    sx={{
-                      display: 'flex',
-                      alignItems: 'flex-start',
-                      mb: 2,
-                    }}
-                  >
-                    <CheckCircleIcon
-                      sx={{
-                        color: '#70873F',
-                        fontSize: 24,
-                        mr: 2,
-                        mt: 0.3,
-                      }}
-                    />
-                    <Typography
-                      variant="body1"
-                      sx={{
-                        color: '#4A4A4A',
-                        fontSize: '15px',
-                        lineHeight: 1.8,
-                      }}
-                    >
-                      {feature}
-                    </Typography>
-                  </Box>
-                ))}
-              </Box>
-
-              <Box sx={{ mb: 3 }}>
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={agreedToTerms}
-                      onChange={(e) => setAgreedToTerms(e.target.checked)}
-                      sx={{
-                        color: '#70873F',
-                        '&.Mui-checked': {
-                          color: '#70873F',
-                        },
-                      }}
-                    />
-                  }
-                  label={
-                    <Typography variant="body2" sx={{ color: '#6B6B6B' }}>
-                      I agree to the{' '}
-                      <Typography
-                        component="span"
-                        sx={{ color: '#70873F', fontWeight: 500, cursor: 'pointer' }}
-                      >
-                        Terms of Service
-                      </Typography>
-                      {' '}and{' '}
-                      <Typography
-                        component="span"
-                        sx={{ color: '#70873F', fontWeight: 500, cursor: 'pointer' }}
-                      >
-                        Privacy Policy
-                      </Typography>
-                    </Typography>
-                  }
-                />
-              </Box>
-
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <div ref={paypal}></div>
-                
-                <Button
-                  fullWidth
-                  variant="contained"
-                  size="large"
-                  disabled={!agreedToTerms}
-                  sx={{
-                    backgroundColor: '#1C1C1C',
-                    color: '#fff',
-                    py: 1.8,
-                    borderRadius: 2,
-                    textTransform: 'none',
-                    fontSize: '16px',
-                    fontWeight: 600,
-                    '&:hover': { backgroundColor: '#000' },
-                    '&:disabled': {
-                      backgroundColor: '#ccc',
-                      color: '#888',
-                    },
-                  }}
-                >
-                  <Box
-                    component="span"
-                    sx={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: 1,
-                    }}
-                  >
-                    <Box
-                      component="span"
-                      sx={{
-                        display: 'inline-block',
-                        width: 24,
-                        height: 16,
-                        mr: 1,
-                      }}
-                    >
-                      💳
-                    </Box>
-                    Debit or Credit Card
-                  </Box>
-                </Button>
-              </Box>
-            </Card>
-          </Container>
+              <Divider sx={{ mb: 3 }} />
+              <div ref={paypal}></div>
+            </CardContent>
+          </Card>
         </Box>
       )}
 

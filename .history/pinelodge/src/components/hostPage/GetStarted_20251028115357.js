@@ -4,7 +4,7 @@ import logo from '../../elements/BaguioPinelodgelogo.png';
 import logoCursor from '../../elements/logoCursor.png';
 import { auth, db } from '../firebase';
 import ProfileMenu from './ProfileMenu';
-import { Box, Button, Typography, Card, CardContent, Container, Grid, Divider, Checkbox, FormControlLabel } from '@mui/material';
+import { Box, Button, Typography, Card, CardContent, Container, Grid, Divider } from '@mui/material';
 import { updateDoc, doc } from 'firebase/firestore';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import VisibilityIcon from '@mui/icons-material/Visibility';
@@ -13,12 +13,10 @@ import SavingsIcon from '@mui/icons-material/Savings';
 import HomeIcon from '@mui/icons-material/Home';
 import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
 import PeopleIcon from '@mui/icons-material/People';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 
 export default function GetStarted() {
   const [userEmail, setUserEmail] = React.useState('');
   const [step, setStep] = React.useState(1);
-  const [agreedToTerms, setAgreedToTerms] = React.useState(false);
   const paypal = React.useRef();
   const navigate = useNavigate();
 
@@ -82,7 +80,7 @@ export default function GetStarted() {
   const handleProceed = () => navigate('/hostPage/HomeHost');
 
   return (
-    <Box sx={{ overflowX: 'hidden', width: '100%', minHeight: '100vh' }}>
+    <Box sx={{ backgroundColor: '#ffffffff', minHeight: '100vh' }}>
       <Box
         component="nav"
         sx={{
@@ -136,104 +134,106 @@ export default function GetStarted() {
       </Box>
 
       {step === 1 && (
-        <Box>
-          {/* Section 1: Hero */}
-          <Box
+        <Box
+          sx={{
+            textAlign: 'center',
+            mt: 8,
+            px: 3,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            minHeight: 'calc(100vh - 200px)'
+          }}
+        >
+          <Button
+            variant="contained"
+            size="small"
             sx={{
-              textAlign: 'center',
-              py: 8,
+              backgroundColor: '#70873F',
+              color: '#fff',
               px: 3,
-              backgroundColor: '#fff',
+              py: 0.8,
+              borderRadius: 20,
+              mb: 4,
+              textTransform: 'none',
+              fontSize: '14px',
+              fontWeight: 500,
+              '&:hover': { backgroundColor: '#5F6E32' },
             }}
           >
-            <Container maxWidth="md">
-              <Button
-                variant="contained"
-                size="small"
-                sx={{
-                  backgroundColor: '#70873F',
-                  color: '#fff',
-                  px: 3,
-                  py: 0.8,
-                  borderRadius: 20,
-                  mb: 4,
-                  textTransform: 'none',
-                  fontSize: '14px',
-                  fontWeight: 500,
-                  '&:hover': { backgroundColor: '#5F6E32' },
-                }}
-              >
-                Start earning today
-              </Button>
+            Start earning today
+          </Button>
 
-              <Typography
-                variant="h2"
-                sx={{
-                  fontWeight: 700,
-                  color: '#1C1C1C',
-                  mb: 3,
-                  fontSize: { xs: '32px', md: '42px' },
-                }}
-              >
-                Become a Pinelodge Host
-              </Typography>
+          <Typography
+            variant="h2"
+            sx={{
+              fontWeight: 700,
+              color: '#1C1C1C',
+              mb: 3,
+              fontSize: { xs: '32px', md: '42px' },
+              maxWidth: 700,
+            }}
+          >
+            Become a Pinelodge Host
+          </Typography>
 
-              <Typography
-                variant="body1"
-                sx={{
-                  color: '#6B6B6B',
-                  mb: 5,
-                  fontSize: '16px',
-                  lineHeight: 1.6,
-                }}
-              >
-                Share your Baguio space with travelers seeking warmth and charm.
-                Start earning and be part of a trusted host community that values
-                comfort, care, and hospitality.
-              </Typography>
+          <Typography
+            variant="body1"
+            sx={{
+              color: '#6B6B6B',
+              mb: 5,
+              maxWidth: 650,
+              mx: 'auto',
+              fontSize: '16px',
+              lineHeight: 1.6,
+            }}
+          >
+            Share your Baguio space with travelers seeking warmth and charm.
+            Start earning and be part of a trusted host community that values
+            comfort, care, and hospitality.
+          </Typography>
 
-              <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', justifyContent: 'center' }}>
-                <Button
-                  variant="contained"
-                  size="large"
-                  onClick={handleGetStarted}
-                  sx={{
-                    backgroundColor: '#30410D',
-                    color: '#fff',
-                    px: 4,
-                    py: 1.5,
-                    borderRadius: 2,
-                    textTransform: 'none',
-                    fontSize: '16px',
-                    fontWeight: 600,
-                    '&:hover': { backgroundColor: '#1C1C1C' },
-                  }}
-                >
-                  Get Started
-                </Button>
+          <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', justifyContent: 'center' }}>
+            <Button
+              variant="contained"
+              size="large"
+              onClick={handleGetStarted}
+              sx={{
+                backgroundColor: '#30410D',
+                color: '#fff',
+                px: 4,
+                py: 1.5,
+                borderRadius: 2,
+                textTransform: 'none',
+                fontSize: '16px',
+                fontWeight: 600,
+                '&:hover': { backgroundColor: '#1C1C1C' },
+              }}
+            >
+              Get Started
+            </Button>
 
-                <Button
-                  variant="outlined"
-                  size="large"
-                  sx={{
-                    borderColor: '#30410D',
-                    color: '#30410D',
-                    px: 4,
-                    py: 1.5,
-                    borderRadius: 2,
-                    textTransform: 'none',
-                    fontSize: '16px',
-                    fontWeight: 600,
-                    '&:hover': {
-                      borderColor: '#1C1C1C',
-                      backgroundColor: 'rgba(48, 65, 13, 0.04)'
-                    },
-                  }}
-                >
-                  Learn More
-                </Button>
-              </Box>
-            </Container>
+            <Button
+              variant="outlined"
+              size="large"
+              sx={{
+                borderColor: '#30410D',
+                color: '#30410D',
+                px: 4,
+                py: 1.5,
+                borderRadius: 2,
+                textTransform: 'none',
+                fontSize: '16px',
+                fontWeight: 600,
+                '&:hover': {
+                  borderColor: '#1C1C1C',
+                  backgroundColor: 'rgba(48, 65, 13, 0.04)'
+                },
+              }}
+            >
+              Learn More
+            </Button>
           </Box>
 
           {/* What is hosting section */}
@@ -254,7 +254,7 @@ export default function GetStarted() {
                 right: '50%',
                 marginLeft: '-50vw',
                 marginRight: '-50vw',
-                overflowX: 'hidden',
+                overflowX: 'hidden', 
               }}
             >
               {/* Green background with image overlay */}
@@ -492,9 +492,9 @@ export default function GetStarted() {
           {/* Section 3: How the booking system works */}
           <Box
             sx={{
-              py: 8,
+              mt: 12,
+              mb: 8,
               px: 3,
-              backgroundColor: '#fff',
             }}
           >
             <Container maxWidth="lg">
@@ -516,6 +516,8 @@ export default function GetStarted() {
                   color: '#6B6B6B',
                   textAlign: 'center',
                   mb: 6,
+                  maxWidth: 700,
+                  mx: 'auto',
                   fontSize: '16px',
                   lineHeight: 1.6,
                 }}
@@ -523,116 +525,204 @@ export default function GetStarted() {
                 Our platform makes it simple to manage bookings and get paid securely.
               </Typography>
 
-              {/* Steps aligned horizontally */}
-              <Grid
-                container
-                spacing={4}
-                justifyContent="center"
-                alignItems="stretch"
-                sx={{
-                  display: 'flex',
-                  flexWrap: 'nowrap',
-                  overflowX: 'auto',
-                  scrollbarWidth: 'none',
-                  '&::-webkit-scrollbar': { display: 'none' }, // hides scrollbar
-                }}
-              >
-                {/* Step Template */}
-                {[
-                  {
-                    number: 1,
-                    title: 'Create your Listing',
-                    text: 'Add photos, description, amenities, and set your listing rules.',
-                    color: '#DE7001',
-                  },
-                  {
-                    number: 2,
-                    title: 'Receive Bookings',
-                    text: 'Guests discover your listing and send booking requests.',
-                    color: '#1C1C1C',
-                  },
-                  {
-                    number: 3,
-                    title: 'Host Your Guests',
-                    text: 'Welcome guests and provide them with a great experience.',
-                    color: '#DE7001',
-                  },
-                  {
-                    number: 4,
-                    title: 'Get Paid',
-                    text: 'Receive secure payments directly to your account.',
-                    color: '#1C1C1C',
-                  },
-                ].map((step, index) => (
-                  <Grid
-                    item
-                    key={index}
-                    xs={12}
-                    sm={6}
-                    md={3}
-                    sx={{
-                      flex: '1 1 25%',
-                      minWidth: 250, // ensures even spacing
-                      textAlign: 'center',
-                    }}
-                  >
-                    <Box>
-                      <Box
-                        sx={{
-                          width: 64,
-                          height: 64,
-                          borderRadius: '50%',
-                          backgroundColor: step.color,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          mx: 'auto',
-                          mb: 2,
-                          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                        }}
-                      >
-                        <Typography
-                          variant="h5"
-                          sx={{ color: '#fff', fontWeight: 700 }}
-                        >
-                          {step.number}
-                        </Typography>
-                      </Box>
+              <Grid container spacing={4} justifyContent="center" alignItems="flex-start">
+                {/* Step 1 */}
+                <Grid item xs={12} sm={6} md={3}>
+                  <Box sx={{ textAlign: 'center' }}>
+                    <Box
+                      sx={{
+                        width: 56,
+                        height: 56,
+                        borderRadius: '50%',
+                        backgroundColor: '#DE7001',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        mx: 'auto',
+                        mb: 2,
+                      }}
+                    >
                       <Typography
-                        variant="h6"
-                        sx={{
-                          fontWeight: 600,
-                          color: '#1C1C1C',
-                          mb: 1.5,
-                          fontSize: '18px',
-                        }}
+                        variant="h5"
+                        sx={{ color: '#fff', fontWeight: 700 }}
                       >
-                        {step.title}
-                      </Typography>
-                      <Typography
-                        variant="body2"
-                        sx={{
-                          color: '#757575',
-                          fontSize: '14px',
-                          lineHeight: 1.6,
-                        }}
-                      >
-                        {step.text}
+                        1
                       </Typography>
                     </Box>
-                  </Grid>
-                ))}
+                    <Typography
+                      variant="h6"
+                      sx={{
+                        fontWeight: 600,
+                        color: '#1C1C1C',
+                        mb: 1.5,
+                        fontSize: '18px',
+                      }}
+                    >
+                      Create your Listing
+                    </Typography>
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        color: '#757575',
+                        fontSize: '14px',
+                        lineHeight: 1.6,
+                      }}
+                    >
+                      Add photos, description, amenities, and set your listing rules
+                    </Typography>
+                  </Box>
+                </Grid>
+
+                {/* Step 2 */}
+                <Grid item xs={12} sm={6} md={3}>
+                  <Box sx={{ textAlign: 'center' }}>
+                    <Box
+                      sx={{
+                        width: 56,
+                        height: 56,
+                        borderRadius: '50%',
+                        backgroundColor: '#1C1C1C',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        mx: 'auto',
+                        mb: 2,
+                      }}
+                    >
+                      <Typography
+                        variant="h5"
+                        sx={{ color: '#fff', fontWeight: 700 }}
+                      >
+                        2
+                      </Typography>
+                    </Box>
+                    <Typography
+                      variant="h6"
+                      sx={{
+                        fontWeight: 600,
+                        color: '#1C1C1C',
+                        mb: 1.5,
+                        fontSize: '18px',
+                      }}
+                    >
+                      Receive Bookings
+                    </Typography>
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        color: '#757575',
+                        fontSize: '14px',
+                        lineHeight: 1.6,
+                      }}
+                    >
+                      Guests discover your listing and send booking requests
+                    </Typography>
+                  </Box>
+                </Grid>
+
+                {/* Step 3 */}
+                <Grid item xs={12} sm={6} md={3}>
+                  <Box sx={{ textAlign: 'center' }}>
+                    <Box
+                      sx={{
+                        width: 56,
+                        height: 56,
+                        borderRadius: '50%',
+                        backgroundColor: '#DE7001',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        mx: 'auto',
+                        mb: 2,
+                      }}
+                    >
+                      <Typography
+                        variant="h5"
+                        sx={{ color: '#fff', fontWeight: 700 }}
+                      >
+                        3
+                      </Typography>
+                    </Box>
+                    <Typography
+                      variant="h6"
+                      sx={{
+                        fontWeight: 600,
+                        color: '#1C1C1C',
+                        mb: 1.5,
+                        fontSize: '18px',
+                      }}
+                    >
+                      Host Your Guests
+                    </Typography>
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        color: '#757575',
+                        fontSize: '14px',
+                        lineHeight: 1.6,
+                      }}
+                    >
+                      Welcome guests and provide them with a great experience
+                    </Typography>
+                  </Box>
+                </Grid>
+
+                {/* Step 4 */}
+                <Grid item xs={12} sm={6} md={3}>
+                  <Box sx={{ textAlign: 'center' }}>
+                    <Box
+                      sx={{
+                        width: 56,
+                        height: 56,
+                        borderRadius: '50%',
+                        backgroundColor: '#1C1C1C',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        mx: 'auto',
+                        mb: 2,
+                      }}
+                    >
+                      <Typography
+                        variant="h5"
+                        sx={{ color: '#fff', fontWeight: 700 }}
+                      >
+                        4
+                      </Typography>
+                    </Box>
+                    <Typography
+                      variant="h6"
+                      sx={{
+                        fontWeight: 600,
+                        color: '#1C1C1C',
+                        mb: 1.5,
+                        fontSize: '18px',
+                      }}
+                    >
+                      Get Paid
+                    </Typography>
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        color: '#757575',
+                        fontSize: '14px',
+                        lineHeight: 1.6,
+                      }}
+                    >
+                      Receive secure payments directly to your account
+                    </Typography>
+                  </Box>
+                </Grid>
               </Grid>
             </Container>
           </Box>
 
-
           {/* Section 4: Safety and Support */}
           <Box
             sx={{
-              py: 8,
+              mt: 12,
+              mb: 8,
               px: 3,
-              backgroundColor: '#f5f5f5',
             }}
           >
             <Container maxWidth="md">
@@ -707,260 +797,74 @@ export default function GetStarted() {
             </Container>
           </Box>
 
-          {/* Section 5: Ready to start hosting? */}
+          {/* Ready to start hosting? */}
           <Box
             sx={{
-              py: 8,
+              mt: 8,
+              mb: 12,
               px: 3,
               textAlign: 'center',
-              backgroundColor: '#fff',
             }}
           >
-            <Container maxWidth="md">
-              <Typography
-                variant="h3"
-                sx={{
-                  fontWeight: 700,
-                  color: '#1C1C1C',
-                  mb: 4,
-                  fontSize: { xs: '28px', md: '36px' },
-                }}
-              >
-                Ready to start hosting?
-              </Typography>
-              <Button
-                variant="contained"
-                size="large"
-                onClick={handleGetStarted}
-                sx={{
-                  backgroundColor: '#30410D',
-                  color: '#fff',
-                  px: 5,
-                  py: 1.8,
-                  borderRadius: 2,
-                  textTransform: 'none',
-                  fontSize: '18px',
-                  fontWeight: 600,
-                  '&:hover': { backgroundColor: '#1C1C1C' },
-                }}
-              >
-                Continue to Subscription
-              </Button>
-            </Container>
+            <Typography
+              variant="h3"
+              sx={{
+                fontWeight: 700,
+                color: '#1C1C1C',
+                mb: 4,
+                fontSize: { xs: '28px', md: '36px' },
+              }}
+            >
+              Ready to start hosting?
+            </Typography>
+            <Button
+              variant="contained"
+              size="large"
+              onClick={handleGetStarted}
+              sx={{
+                backgroundColor: '#30410D',
+                color: '#fff',
+                px: 5,
+                py: 1.8,
+                borderRadius: 2,
+                textTransform: 'none',
+                fontSize: '18px',
+                fontWeight: 600,
+                '&:hover': { backgroundColor: '#1C1C1C' },
+              }}
+            >
+              Continue to Subscription
+            </Button>
           </Box>
         </Box>
       )}
 
       {step === 2 && (
-        <Box sx={{ py: 8, px: 3, backgroundColor: '#f5f5f5', minHeight: '100vh' }}>
-          <Container maxWidth="md">
-            <Box sx={{ textAlign: 'center', mb: 5 }}>
+        <Box sx={{ textAlign: 'center', mt: 8 }}>
+          <Card
+            sx={{
+              display: 'inline-block',
+              p: 4,
+              borderRadius: 3,
+              boxShadow: 3,
+              maxWidth: 400,
+            }}
+          >
+            <CardContent>
               <Typography
-                variant="h3"
-                sx={{
-                  fontWeight: 700,
-                  color: '#1C1C1C',
-                  mb: 2,
-                  fontSize: { xs: '28px', md: '36px' },
-                }}
+                variant="h5"
+                sx={{ fontWeight: 600, color: '#30410D', mb: 1 }}
               >
-                Start your hosting journey today
+                Activate Your Host Account
               </Typography>
-              <Typography
-                variant="body1"
-                sx={{
-                  color: '#6B6B6B',
-                  fontSize: '16px',
-                  lineHeight: 1.6,
-                }}
-              >
-                Get full access to all hosting features with our 3 month subscription plan.
+              <Typography variant="body2" sx={{ color: 'text.secondary', mb: 3 }}>
+                A yearly ₱3,000 subscription gives you access to host tools,
+                guest visibility, and exclusive PineLodge support.
               </Typography>
-            </Box>
-
-            <Card
-              sx={{
-                p: { xs: 4, md: 5 },
-                borderRadius: 4,
-                boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
-                backgroundColor: '#fff',
-              }}
-            >
-              <Typography
-                variant="h4"
-                sx={{
-                  fontWeight: 700,
-                  color: '#1C1C1C',
-                  textAlign: 'center',
-                  mb: 2,
-                  fontSize: { xs: '24px', md: '28px' },
-                }}
-              >
-                3 Month Subscription Plan
-              </Typography>
-              
-              <Box sx={{ textAlign: 'center', mb: 3 }}>
-                <Typography
-                  component="span"
-                  sx={{
-                    fontSize: { xs: '40px', md: '48px' },
-                    fontWeight: 700,
-                    color: '#DE7001',
-                  }}
-                >
-                  ₱3,000
-                </Typography>
-                <Typography
-                  component="span"
-                  sx={{
-                    fontSize: '18px',
-                    color: '#757575',
-                    ml: 1,
-                  }}
-                >
-                  / quarterly
-                </Typography>
-              </Box>
-
-              <Divider sx={{ mb: 4 }} />
-
-              <Typography
-                variant="h6"
-                sx={{
-                  fontWeight: 600,
-                  color: '#1C1C1C',
-                  mb: 3,
-                  fontSize: '18px',
-                }}
-              >
-                What's included:
-              </Typography>
-
-              <Box sx={{ mb: 4 }}>
-                {[
-                  'Unlimited property listings',
-                  'Advanced booking management tools',
-                  'Priority 24/7 customer support',
-                  'Comprehensive analytics dashboard',
-                  'Host protection insurance up to $1M',
-                  'Verified guest screening',
-                  '2% platform fee on all bookings',
-                  'Marketing tools and promotion features',
-                ].map((feature, index) => (
-                  <Box
-                    key={index}
-                    sx={{
-                      display: 'flex',
-                      alignItems: 'flex-start',
-                      mb: 2,
-                    }}
-                  >
-                    <CheckCircleIcon
-                      sx={{
-                        color: '#70873F',
-                        fontSize: 24,
-                        mr: 2,
-                        mt: 0.3,
-                      }}
-                    />
-                    <Typography
-                      variant="body1"
-                      sx={{
-                        color: '#4A4A4A',
-                        fontSize: '15px',
-                        lineHeight: 1.8,
-                      }}
-                    >
-                      {feature}
-                    </Typography>
-                  </Box>
-                ))}
-              </Box>
-
-              <Box sx={{ mb: 3 }}>
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={agreedToTerms}
-                      onChange={(e) => setAgreedToTerms(e.target.checked)}
-                      sx={{
-                        color: '#70873F',
-                        '&.Mui-checked': {
-                          color: '#70873F',
-                        },
-                      }}
-                    />
-                  }
-                  label={
-                    <Typography variant="body2" sx={{ color: '#6B6B6B' }}>
-                      I agree to the{' '}
-                      <Typography
-                        component="span"
-                        sx={{ color: '#70873F', fontWeight: 500, cursor: 'pointer' }}
-                      >
-                        Terms of Service
-                      </Typography>
-                      {' '}and{' '}
-                      <Typography
-                        component="span"
-                        sx={{ color: '#70873F', fontWeight: 500, cursor: 'pointer' }}
-                      >
-                        Privacy Policy
-                      </Typography>
-                    </Typography>
-                  }
-                />
-              </Box>
-
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <div ref={paypal}></div>
-                
-                <Button
-                  fullWidth
-                  variant="contained"
-                  size="large"
-                  disabled={!agreedToTerms}
-                  sx={{
-                    backgroundColor: '#1C1C1C',
-                    color: '#fff',
-                    py: 1.8,
-                    borderRadius: 2,
-                    textTransform: 'none',
-                    fontSize: '16px',
-                    fontWeight: 600,
-                    '&:hover': { backgroundColor: '#000' },
-                    '&:disabled': {
-                      backgroundColor: '#ccc',
-                      color: '#888',
-                    },
-                  }}
-                >
-                  <Box
-                    component="span"
-                    sx={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: 1,
-                    }}
-                  >
-                    <Box
-                      component="span"
-                      sx={{
-                        display: 'inline-block',
-                        width: 24,
-                        height: 16,
-                        mr: 1,
-                      }}
-                    >
-                      💳
-                    </Box>
-                    Debit or Credit Card
-                  </Box>
-                </Button>
-              </Box>
-            </Card>
-          </Container>
+              <Divider sx={{ mb: 3 }} />
+              <div ref={paypal}></div>
+            </CardContent>
+          </Card>
         </Box>
       )}
 
