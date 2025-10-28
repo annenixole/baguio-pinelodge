@@ -1,17 +1,5 @@
 import React, { useState } from "react";
-import {
-    Card,
-    CardContent,
-    CardMedia,
-    Typography,
-    Box,
-    Chip,
-    Button,
-    IconButton,
-    Menu,
-    MenuItem,
-    Tooltip,
-} from "@mui/material";
+import {Card,CardContent,CardMedia,Typography,Box,Chip,Button,IconButton,Menu,MenuItem,Tooltip,} from "@mui/material";
 import LocationOnIcon from "@mui/icons-material/LocationOn";
 import PeopleIcon from "@mui/icons-material/People";
 import HotelIcon from "@mui/icons-material/Hotel";
@@ -21,12 +9,20 @@ import ShareIcon from "@mui/icons-material/Share";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import FacebookIcon from "@mui/icons-material/Facebook";
 import StarIcon from "@mui/icons-material/Star";
+import FavoriteIcon from "@mui/icons-material/Favorite";
+import FavoriteBorderIcon from "@mui/icons-material/FavoriteBorder";
 import { useNavigate } from "react-router-dom";
 
-export default function ListingCardGuest({ listing, onView }) {
+export default function ListingCardGuest({ listing, onView, hideTypeLabel = false }) {
     const navigate = useNavigate();
     const [shareAnchorEl, setShareAnchorEl] = useState(null);
     const [copySuccess, setCopySuccess] = useState(false);
+    
+    // Check if listing is already favorited on mount
+    const [isFavorite, setIsFavorite] = useState(() => {
+        const favorites = JSON.parse(localStorage.getItem('favorites') || '[]');
+        return favorites.some(fav => fav.id === listing.id);
+    });
 
     const {
         title,
@@ -87,6 +83,23 @@ export default function ListingCardGuest({ listing, onView }) {
         handleShareClose();
     };
 
+    const handleFavoriteClick = (event) => {
+        event.stopPropagation();
+        const favorites = JSON.parse(localStorage.getItem('favorites') || '[]');
+        
+        if (isFavorite) {
+            // Remove from favorites
+            const updatedFavorites = favorites.filter(fav => fav.id !== listing.id);
+            localStorage.setItem('favorites', JSON.stringify(updatedFavorites));
+            setIsFavorite(false);
+        } else {
+            // Add to favorites
+            const updatedFavorites = [...favorites, listing];
+            localStorage.setItem('favorites', JSON.stringify(updatedFavorites));
+            setIsFavorite(true);
+        }
+    };
+
     return (
         <Card
             sx={{
@@ -112,23 +125,25 @@ export default function ListingCardGuest({ listing, onView }) {
                     sx={{ objectFit: "cover" }}
                 />
 
-                {/* Type Label */}
-                <Chip
-                    label={type.charAt(0).toUpperCase() + type.slice(1)}
-                    sx={{
-                        position: "absolute",
-                        top: 10,
-                        left: 10,
-                        fontWeight: 600,
-                        color: "#30410D",
-                        backgroundColor: "#ffffffcc",
-                        borderRadius: "16px",
-                        px: 1.5,
-                        py: 0.5,
-                        fontSize: "0.8rem",
-                        boxShadow: 2,
-                    }}
-                />
+                {/* Type Label - Hidden on Accommodation page */}
+                {!hideTypeLabel && (
+                    <Chip
+                        label={type.charAt(0).toUpperCase() + type.slice(1)}
+                        sx={{
+                            position: "absolute",
+                            top: 10,
+                            left: 10,
+                            fontWeight: 600,
+                            color: "#30410D",
+                            backgroundColor: "#ffffffcc",
+                            borderRadius: "16px",
+                            px: 1.5,
+                            py: 0.5,
+                            fontSize: "0.8rem",
+                            boxShadow: 2,
+                        }}
+                    />
+                )}
 
                 {/* ✅ Promotion Banner */}
                 {promotion?.percentageDiscount && (
@@ -160,6 +175,28 @@ export default function ListingCardGuest({ listing, onView }) {
                         )}
                     </Box>
                 )}
+
+                {/* Favorite (Heart) Button */}
+                <Tooltip title={isFavorite ? "Remove from favorites" : "Add to favorites"}>
+                    <IconButton
+                        onClick={handleFavoriteClick}
+                        sx={{
+                            position: "absolute",
+                            top: 10,
+                            right: 55,
+                            bgcolor: "#ffffffcc",
+                            "&:hover": { bgcolor: "#f0f0f0" },
+                            boxShadow: 2,
+                        }}
+                        size="small"
+                    >
+                        {isFavorite ? (
+                            <FavoriteIcon fontSize="small" sx={{ color: "#de4001ff" }} />
+                        ) : (
+                            <FavoriteBorderIcon fontSize="small" />
+                        )}
+                    </IconButton>
+                </Tooltip>
 
                 {/* Share Button */}
                 <Tooltip title="Share">

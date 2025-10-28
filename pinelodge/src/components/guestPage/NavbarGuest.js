@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { AppBar, Toolbar, Typography, Button, Box, IconButton, Drawer, List, ListItem, ListItemText } from "@mui/material";
+import { AppBar, Toolbar, Typography, Button, Box, IconButton, Drawer, List, ListItem, ListItemText, Badge } from "@mui/material";
 import MenuIcon from "@mui/icons-material/Menu";
+import FavoriteIcon from "@mui/icons-material/Favorite";
+import NotificationsIcon from "@mui/icons-material/Notifications";
 import logo from "../../elements/BaguioPinelodgelogo.png";
 import logoCursor from "../../elements/logoCursor.png";
 import { collectionGroup, getDocs } from "firebase/firestore";
@@ -10,15 +12,44 @@ import ProfileMenuGuest from "./ProfileMenuGuest";
 
 export default function NavbarGuest() {
   const [open, setOpen] = useState(false);
+  const [favoritesCount, setFavoritesCount] = useState(0);
+  const [notificationsCount, setNotificationsCount] = useState(3); // Default to 3 for demo
   const navigate = useNavigate();
 
   const toggleDrawer = (state) => () => setOpen(state);
 
-  const menuItems = ["Accommodations", "Experiences", "Services"];
+  const menuItems = [
+    { name: "Accommodations", path: "/AccomGuest" },
+    { name: "Experiences", path: "/ExpGuest" },
+    { name: "Services", path: "/ServGuest" }
+  ];
+
+  // Update favorites count
+  useEffect(() => {
+    const updateFavoritesCount = () => {
+      const favorites = JSON.parse(localStorage.getItem('favorites') || '[]');
+      setFavoritesCount(favorites.length);
+    };
+
+    updateFavoritesCount();
+
+    // Listen for storage changes
+    window.addEventListener('storage', updateFavoritesCount);
+    window.addEventListener('focus', updateFavoritesCount);
+
+    // Set up interval to check for updates
+    const interval = setInterval(updateFavoritesCount, 1000);
+
+    return () => {
+      window.removeEventListener('storage', updateFavoritesCount);
+      window.removeEventListener('focus', updateFavoritesCount);
+      clearInterval(interval);
+    };
+  }, []);
 
   return (
     <>
-      <AppBar position="static" color="transparent" elevation={0} sx={{ paddingTop: "12px" }}>
+      <AppBar position="static" color="transparent" elevation={0} sx={{ paddingTop: "14px", paddingBottom: "14px" }}>
         <Toolbar sx={{ justifyContent: "space-between" }}>
           <Box display="flex" alignItems="center" gap={1}>
             <Link to="/" style={{ textDecoration: "none" }}>
@@ -57,16 +88,44 @@ export default function NavbarGuest() {
           <Box display={{ xs: "none", md: "flex" }} gap={6}>
             {menuItems.map((item) => (
               <Button
-                key={item}
+                key={item.name}
+                onClick={() => navigate(item.path)}
                 sx={{ color: "#30410D", textTransform: "none", fontSize: "1rem", "&:hover": { backgroundColor: "#dceeb46c", borderRadius: "20px" } }}
               >
-                {item}
+                {item.name}
               </Button>
             ))}
           </Box>
 
           {/* ✅ Profile Menu for Guests */}
-          <Box display={{ xs: "none", md: "flex" }} alignItems="center" gap={3}>
+          <Box display={{ xs: "none", md: "flex" }} alignItems="center" gap={2}>
+            <IconButton
+              onClick={() => navigate('/Favorites')}
+              sx={{
+                color: "#30410D",
+                "&:hover": { backgroundColor: "#dceeb46c" }
+              }}
+            >
+              <Badge badgeContent={favoritesCount} color="error">
+                <FavoriteIcon />
+              </Badge>
+            </IconButton>
+            
+            <IconButton
+              onClick={() => {
+                // TODO: Add notification navigation/modal
+                console.log('Notifications clicked');
+              }}
+              sx={{
+                color: "#30410D",
+                "&:hover": { backgroundColor: "#dceeb46c" }
+              }}
+            >
+              <Badge badgeContent={notificationsCount} color="error">
+                <NotificationsIcon />
+              </Badge>
+            </IconButton>
+            
             <ProfileMenuGuest />
           </Box>
 
@@ -78,9 +137,9 @@ export default function NavbarGuest() {
           <Drawer anchor="right" open={open} onClose={toggleDrawer(false)}>
             <Box sx={{ width: 250, padding: 2 }}>
               <List>
-                {menuItems.map((text) => (
-                  <ListItem button key={text}>
-                    <ListItemText primary={text} />
+                {menuItems.map((item) => (
+                  <ListItem button key={item.name} onClick={() => { navigate(item.path); setOpen(false); }}>
+                    <ListItemText primary={item.name} />
                   </ListItem>
                 ))}
               </List>

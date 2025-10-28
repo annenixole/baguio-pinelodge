@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import { Box, Typography, Button, Grid, Paper, MenuItem, Select, FormControl, Popover } from "@mui/material";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
+import { useNavigate } from "react-router-dom";
 import Calendar from "react-calendar";
 import "react-calendar/dist/Calendar.css";
 import imgheader from "../../elements/landing-header-img.jpg";
@@ -22,6 +23,8 @@ export default function LandingGuest() {
   const [dateRange, setDateRange] = useState([null, null]);
   const [dateAnchorEl, setDateAnchorEl] = useState(null);
   const dateButtonRef = useRef(null);
+  
+  const navigate = useNavigate();
 
   // ✅ Function to open modal
   const handleViewListing = (listing) => {
@@ -81,6 +84,36 @@ export default function LandingGuest() {
     } else {
       setter(newValue);
     }
+  };
+
+  // Handle search button click
+  const handleSearch = () => {
+    // Determine which page to navigate to based on filterType
+    let targetPage = "/AccomGuest"; // Default to accommodations
+    
+    if (filterType === "Service") {
+      targetPage = "/ServGuest";
+    } else if (filterType === "Experience") {
+      targetPage = "/ExpGuest";
+    } else if (filterType === "Accommodation") {
+      targetPage = "/AccomGuest";
+    } else {
+      // If no type selected, default to accommodations
+      targetPage = "/AccomGuest";
+    }
+
+    // Navigate with search criteria as state
+    navigate(targetPage, {
+      state: {
+        searchFilters: {
+          type: filterType,
+          location: filterLocation,
+          dates: filterDates,
+          dateRange: dateRange,
+          guests: filterGuests
+        }
+      }
+    });
   };
 
   useEffect(() => {
@@ -181,7 +214,7 @@ export default function LandingGuest() {
               maxWidth: 1200,
               mx: "auto",
               borderRadius: "24px",
-              backgroundColor: "rgba(255, 255, 255, 1)",
+              backgroundColor: "rgba(252, 249, 232, 0.81)",
               display: "flex",
               alignItems: "center",
               justifyContent: "space-between",
@@ -213,7 +246,7 @@ export default function LandingGuest() {
                   displayEmpty
                   disableUnderline
                   IconComponent={KeyboardArrowDownIcon}
-                  renderValue={(selected) => selected || "-"}
+                  renderValue={(selected) => selected || "Select type"}
                   sx={{
                     fontWeight: 600,
                     fontSize: "1rem",
@@ -256,7 +289,7 @@ export default function LandingGuest() {
                   displayEmpty
                   disableUnderline
                   IconComponent={KeyboardArrowDownIcon}
-                  renderValue={(selected) => selected || "-"}
+                  renderValue={(selected) => selected || "All Areas"}
                   sx={{
                     fontWeight: 600,
                     fontSize: "1rem",
@@ -310,7 +343,7 @@ export default function LandingGuest() {
                 }}
               >
                 <Typography sx={{ fontWeight: 600, fontSize: "1rem", color: "#30410D" }}>
-                  {filterDates || "-"}
+                  {filterDates || "Any date"}
                 </Typography>
                 <KeyboardArrowDownIcon sx={{ color: "#30410D" }} />
               </Box>
@@ -371,7 +404,7 @@ export default function LandingGuest() {
                   displayEmpty
                   disableUnderline
                   IconComponent={KeyboardArrowDownIcon}
-                  renderValue={(selected) => selected || "-"}
+                  renderValue={(selected) => selected || "Any guests"}
                   sx={{
                     fontWeight: 600,
                     fontSize: "1rem",
@@ -384,6 +417,7 @@ export default function LandingGuest() {
                     },
                   }}
                 >
+                  <MenuItem value="">Any guests</MenuItem>
                   <MenuItem value="1 guest">1 guest</MenuItem>
                   <MenuItem value="2 guests">2 guests</MenuItem>
                   <MenuItem value="3 guests">3 guests</MenuItem>
@@ -397,9 +431,10 @@ export default function LandingGuest() {
             <Box sx={{ px: 2 }}>
               <Button
                 variant="contained"
+                onClick={handleSearch}
                 sx={{
-                  backgroundColor: "#000",
-                  color: "#DE7001",
+                  backgroundColor: "#30410D",
+                  color: "#f9f9f9ff",
                   fontWeight: 700,
                   textTransform: "none",
                   px: 6,
@@ -408,8 +443,8 @@ export default function LandingGuest() {
                   fontSize: "1rem",
                   minWidth: { xs: "100%", md: "120px" },
                   "&:hover": { 
-                    backgroundColor: "#DE7001", 
-                    color: "#000" 
+                    backgroundColor: "#70873F", 
+                    color: "#f9f9f9ff" 
                   },
                 }}
               >

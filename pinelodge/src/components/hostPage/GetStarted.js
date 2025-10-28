@@ -4,7 +4,7 @@ import logo from '../../elements/BaguioPinelodgelogo.png';
 import logoCursor from '../../elements/logoCursor.png';
 import { auth, db } from '../firebase';
 import ProfileMenu from './ProfileMenu';
-import { Box, Button, Typography, Card, CardContent, Container, Grid, Divider, Checkbox, FormControlLabel } from '@mui/material';
+import { Box, Button, Typography, Card, CardContent, Container, Grid, Divider, Checkbox, FormControlLabel, Modal } from '@mui/material';
 import { updateDoc, doc } from 'firebase/firestore';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import VisibilityIcon from '@mui/icons-material/Visibility';
@@ -14,11 +14,16 @@ import HomeIcon from '@mui/icons-material/Home';
 import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
 import PeopleIcon from '@mui/icons-material/People';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import SecurityIcon from '@mui/icons-material/Security';
+import PaymentIcon from '@mui/icons-material/Payment';
+import CleaningServicesIcon from '@mui/icons-material/CleaningServices';
+import SupportAgentIcon from '@mui/icons-material/SupportAgent';
 
 export default function GetStarted() {
   const [userEmail, setUserEmail] = React.useState('');
   const [step, setStep] = React.useState(1);
   const [agreedToTerms, setAgreedToTerms] = React.useState(false);
+  const [openSuccessModal, setOpenSuccessModal] = React.useState(false);
   const paypal = React.useRef();
   const navigate = useNavigate();
 
@@ -38,7 +43,7 @@ export default function GetStarted() {
   }, []);
 
   React.useEffect(() => {
-    if (step === 2 && paypal.current && !paypal.current.hasChildNodes()) {
+    if (paypal.current && !paypal.current.hasChildNodes()) {
       window.paypal
         .Buttons({
           style: {
@@ -61,13 +66,14 @@ export default function GetStarted() {
           },
           onApprove: async (data, actions) => {
             const order = await actions.order.capture();
-            alert('Payment Successful! Welcome to PineLodge.');
+            console.log('Payment successful, opening modal...');
             const user = auth.currentUser;
             if (user) {
               const userRef = doc(db, 'users', user.uid);
               await updateDoc(userRef, { isNewUser: false });
             }
-            setStep(3);
+            setOpenSuccessModal(true);
+            console.log('Modal state set to true');
           },
           onError: (err) => {
             console.log(err);
@@ -76,10 +82,29 @@ export default function GetStarted() {
         })
         .render(paypal.current);
     }
-  }, [step]);
+  }, []);
 
-  const handleGetStarted = () => setStep(2);
+  const handleGetStarted = () => {
+    // Scroll to subscription section
+    const subscriptionSection = document.getElementById('subscription-section');
+    if (subscriptionSection) {
+      subscriptionSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+  
+  const handleLearnMore = () => {
+    // Scroll to "What is hosting" section
+    const whatIsHostingSection = document.getElementById('what-is-hosting-section');
+    if (whatIsHostingSection) {
+      whatIsHostingSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+  
   const handleProceed = () => navigate('/hostPage/HomeHost');
+
+  React.useEffect(() => {
+    console.log('Modal open state:', openSuccessModal);
+  }, [openSuccessModal]);
 
   return (
     <Box sx={{ overflowX: 'hidden', width: '100%', minHeight: '100vh' }}>
@@ -215,6 +240,7 @@ export default function GetStarted() {
                 <Button
                   variant="outlined"
                   size="large"
+                  onClick={handleLearnMore}
                   sx={{
                     borderColor: '#30410D',
                     color: '#30410D',
@@ -238,6 +264,7 @@ export default function GetStarted() {
 
           {/* What is hosting section */}
           <Box
+            id="what-is-hosting-section"
             sx={{
               mt: 8,
               width: '100%',
@@ -267,7 +294,7 @@ export default function GetStarted() {
                   backgroundSize: 'cover',
                   backgroundPosition: 'center',
                   backgroundBlendMode: 'multiply',
-                  py: 8,
+                  py: 14,
                   px: { xs: 2, md: 4 },
                   position: 'relative',
                   '&::before': {
@@ -318,7 +345,7 @@ export default function GetStarted() {
                 maxWidth="lg"
                 sx={{
                   position: 'relative',
-                  mt: -7,
+                  mt: -8,
                   zIndex: 3,
                   pb: 8,
                   overflowX: 'hidden',
@@ -326,7 +353,7 @@ export default function GetStarted() {
               >
                 <Grid
                   container
-                  spacing={3}
+                  spacing={6}
                   justifyContent="center"
                   alignItems="stretch"
                   sx={{ flexWrap: 'wrap' }}
@@ -337,44 +364,44 @@ export default function GetStarted() {
                       sx={{
                         p: 3,
                         borderRadius: 2,
-                        height: '100%',
+                        height: '80%',
                         maxWidth: 300,
                         mx: 'auto',
                         backgroundColor: '#fff',
                         boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
                         display: 'flex',
                         flexDirection: 'column',
-                        justifyContent: 'space-between',
                       }}
                     >
-                      <Box
-                        sx={{
-                          width: 40,
-                          height: 40,
-                          borderRadius: 1.5,
-                          backgroundColor: '#E3F2FD',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          mb: 2,
-                        }}
-                      >
-                        <PeopleIcon sx={{ color: '#4FC3F7', fontSize: 24 }} />
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1 }}>
+                        <Box
+                          sx={{
+                            width: 40,
+                            height: 40,
+                            borderRadius: 1.5,
+                            backgroundColor: '#E3F2FD',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0,
+                          }}
+                        >
+                          <PeopleIcon sx={{ color: '#4FC3F7', fontSize: 24 }} />
+                        </Box>
+                        <Typography
+                          variant="h6"
+                          sx={{
+                            fontWeight: 600,
+                            color: '#1C1C1C',
+                            fontSize: '16px',
+                          }}
+                        >
+                          Welcome Guests
+                        </Typography>
                       </Box>
                       <Typography
-                        variant="h6"
-                        sx={{
-                          fontWeight: 600,
-                          color: '#1C1C1C',
-                          mb: 1.5,
-                          fontSize: '16px',
-                        }}
-                      >
-                        Welcome Guests
-                      </Typography>
-                      <Typography
                         variant="body2"
-                        sx={{ color: '#757575', fontSize: '13px', lineHeight: 1.6 }}
+                        sx={{ color: '#757575', fontSize: '13px', lineHeight: 1.6, ml: 7 }}
                       >
                         Accept bookings, communicate with guests, and provide an exceptional
                         experience.
@@ -388,44 +415,44 @@ export default function GetStarted() {
                       sx={{
                         p: 3,
                         borderRadius: 2,
-                        height: '100%',
+                        height: '80%',
                         maxWidth: 300,
                         mx: 'auto',
                         backgroundColor: '#fff',
                         boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
                         display: 'flex',
                         flexDirection: 'column',
-                        justifyContent: 'space-between',
                       }}
                     >
-                      <Box
-                        sx={{
-                          width: 40,
-                          height: 40,
-                          borderRadius: 1.5,
-                          backgroundColor: '#E8F5E9',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          mb: 2,
-                        }}
-                      >
-                        <AttachMoneyIcon sx={{ color: '#66BB6A', fontSize: 24 }} />
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1 }}>
+                        <Box
+                          sx={{
+                            width: 40,
+                            height: 40,
+                            borderRadius: 1.5,
+                            backgroundColor: '#E8F5E9',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0,
+                          }}
+                        >
+                          <AttachMoneyIcon sx={{ color: '#66BB6A', fontSize: 24 }} />
+                        </Box>
+                        <Typography
+                          variant="h6"
+                          sx={{
+                            fontWeight: 600,
+                            color: '#1C1C1C',
+                            fontSize: '16px',
+                          }}
+                        >
+                          Set Your Price
+                        </Typography>
                       </Box>
                       <Typography
-                        variant="h6"
-                        sx={{
-                          fontWeight: 600,
-                          color: '#1C1C1C',
-                          mb: 1.5,
-                          fontSize: '16px',
-                        }}
-                      >
-                        Set Your Price
-                      </Typography>
-                      <Typography
                         variant="body2"
-                        sx={{ color: '#757575', fontSize: '13px', lineHeight: 1.6 }}
+                        sx={{ color: '#757575', fontSize: '13px', lineHeight: 1.6, ml: 7 }}
                       >
                         You control your pricing and availability. Adjust rates based on
                         seasons and demand.
@@ -439,44 +466,44 @@ export default function GetStarted() {
                       sx={{
                         p: 3,
                         borderRadius: 2,
-                        height: '100%',
+                        height: '80%',
                         maxWidth: 300,
                         mx: 'auto',
                         backgroundColor: '#fff',
                         boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
                         display: 'flex',
                         flexDirection: 'column',
-                        justifyContent: 'space-between',
                       }}
                     >
-                      <Box
-                        sx={{
-                          width: 40,
-                          height: 40,
-                          borderRadius: 1.5,
-                          backgroundColor: '#E3F2FD',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          mb: 2,
-                        }}
-                      >
-                        <HomeIcon sx={{ color: '#4FC3F7', fontSize: 24 }} />
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1 }}>
+                        <Box
+                          sx={{
+                            width: 40,
+                            height: 40,
+                            borderRadius: 1.5,
+                            backgroundColor: '#E3F2FD',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0,
+                          }}
+                        >
+                          <HomeIcon sx={{ color: '#4FC3F7', fontSize: 24 }} />
+                        </Box>
+                        <Typography
+                          variant="h6"
+                          sx={{
+                            fontWeight: 600,
+                            color: '#1C1C1C',
+                            fontSize: '16px',
+                          }}
+                        >
+                          List Your Space
+                        </Typography>
                       </Box>
                       <Typography
-                        variant="h6"
-                        sx={{
-                          fontWeight: 600,
-                          color: '#1C1C1C',
-                          mb: 1.5,
-                          fontSize: '16px',
-                        }}
-                      >
-                        List Your Space
-                      </Typography>
-                      <Typography
                         variant="body2"
-                        sx={{ color: '#757575', fontSize: '13px', lineHeight: 1.6 }}
+                        sx={{ color: '#757575', fontSize: '13px', lineHeight: 1.6, ml: 7 }}
                       >
                         Share your entire home, a private room, or even a unique space like
                         a treehouse or boat.
@@ -492,7 +519,7 @@ export default function GetStarted() {
           {/* Section 3: How the booking system works */}
           <Box
             sx={{
-              py: 8,
+              py: 12,
               px: 3,
               backgroundColor: '#fff',
             }}
@@ -502,7 +529,7 @@ export default function GetStarted() {
                 variant="h3"
                 sx={{
                   fontWeight: 700,
-                  color: '#1C1C1C',
+                  color: '#30410D',
                   textAlign: 'center',
                   mb: 2,
                   fontSize: { xs: '28px', md: '36px' },
@@ -515,7 +542,7 @@ export default function GetStarted() {
                 sx={{
                   color: '#6B6B6B',
                   textAlign: 'center',
-                  mb: 6,
+                  mb: 12,
                   fontSize: '16px',
                   lineHeight: 1.6,
                 }}
@@ -579,8 +606,8 @@ export default function GetStarted() {
                     <Box>
                       <Box
                         sx={{
-                          width: 64,
-                          height: 64,
+                          width: 54,
+                          height: 54,
                           borderRadius: '50%',
                           backgroundColor: step.color,
                           display: 'flex',
@@ -592,7 +619,7 @@ export default function GetStarted() {
                         }}
                       >
                         <Typography
-                          variant="h5"
+                          variant="h6"
                           sx={{ color: '#fff', fontWeight: 700 }}
                         >
                           {step.number}
@@ -632,76 +659,184 @@ export default function GetStarted() {
             sx={{
               py: 8,
               px: 3,
-              backgroundColor: '#f5f5f5',
+              position: 'relative',
+              backgroundImage: 'url(https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?w=1600)',
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              backgroundAttachment: 'fixed',
+              '&::before': {
+                content: '""',
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                backgroundColor: 'rgba(230, 230, 230, 0.92)',
+                zIndex: 0,
+              },
             }}
           >
-            <Container maxWidth="md">
+            <Container maxWidth="md" sx={{ position: 'relative', zIndex: 1 }}>
+              <Typography
+                variant="h3"
+                sx={{
+                  fontWeight: 700,
+                  color: '#30410D',
+                  textAlign: 'center',
+                  mb: 2,
+                  fontSize: { xs: '28px', md: '36px' },
+                }}
+              >
+                Safety and Support
+              </Typography>
+              <Typography
+                variant="body1"
+                sx={{
+                  color: '#6B6B6B',
+                  textAlign: 'center',
+                  mb: 5,
+                  fontSize: '16px',
+                  lineHeight: 1.6,
+                  maxWidth: 700,
+                  mx: 'auto',
+                }}
+              >
+                We're here to help you succeed as a host with comprehensive support and protection.
+              </Typography>
+
               <Card
                 sx={{
-                  p: { xs: 4, md: 6 },
-                  borderRadius: 4,
-                  boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+                  p: { xs: 3, md: 4 },
+                  borderRadius: 3,
+                  boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
                   backgroundColor: '#fff',
                 }}
               >
-                <Typography
-                  variant="h3"
-                  sx={{
-                    fontWeight: 700,
-                    color: '#1C1C1C',
-                    textAlign: 'center',
-                    mb: 2,
-                    fontSize: { xs: '28px', md: '36px' },
-                  }}
-                >
-                  Safety and Support
-                </Typography>
-                <Typography
-                  variant="body1"
-                  sx={{
-                    color: '#6B6B6B',
-                    textAlign: 'center',
-                    mb: 4,
-                    fontSize: '16px',
-                    lineHeight: 1.6,
-                  }}
-                >
-                  We're here to help you succeed as a host with comprehensive support and protection.
-                </Typography>
+                {/* Secure Payments */}
+                <Box sx={{ display: 'flex', gap: 2, mb: 4 }}>
+                  <Box
+                    sx={{
+                      width: 48,
+                      height: 48,
+                      borderRadius: 2,
+                      backgroundColor: 'rgba(112, 135, 63, 0.1)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <PaymentIcon sx={{ color: '#70873F', fontSize: 28 }} />
+                  </Box>
+                  <Box>
+                    <Typography
+                      variant="h6"
+                      sx={{
+                        fontWeight: 600,
+                        color: '#1C1C1C',
+                        mb: 0.5,
+                        fontSize: '18px',
+                      }}
+                    >
+                      Secure Payments
+                    </Typography>
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        color: '#6B6B6B',
+                        fontSize: '14px',
+                        lineHeight: 1.7,
+                      }}
+                    >
+                      All payments are processed securely through the platform, protecting you from fraud and ensuring your earnings are safely deposited after every stay.
+                    </Typography>
+                  </Box>
+                </Box>
 
-                <Box sx={{ textAlign: 'left', maxWidth: 800, mx: 'auto' }}>
-                  <Typography
-                    variant="body1"
+                <Divider sx={{ my: 3 }} />
+
+                {/* Safety Guidelines */}
+                <Box sx={{ display: 'flex', gap: 2, mb: 4 }}>
+                  <Box
                     sx={{
-                      color: '#4A4A4A',
-                      mb: 3,
-                      fontSize: '15px',
-                      lineHeight: 1.8,
+                      width: 48,
+                      height: 48,
+                      borderRadius: 2,
+                      backgroundColor: 'rgba(222, 112, 1, 0.1)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
                     }}
                   >
-                    All payments are processed securely through the platform, protecting you from fraud and ensuring your earnings are safely deposited after every stay.
-                  </Typography>
-                  <Typography
-                    variant="body1"
+                    <CleaningServicesIcon sx={{ color: '#DE7001', fontSize: 28 }} />
+                  </Box>
+                  <Box>
+                    <Typography
+                      variant="h6"
+                      sx={{
+                        fontWeight: 600,
+                        color: '#1C1C1C',
+                        mb: 0.5,
+                        fontSize: '18px',
+                      }}
+                    >
+                      Safety Guidelines
+                    </Typography>
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        color: '#6B6B6B',
+                        fontSize: '14px',
+                        lineHeight: 1.7,
+                      }}
+                    >
+                      All payments are processed securely through the platform, protecting you from fraud and ensuring your earnings are safely deposited after every stay.
+                    </Typography>
+                  </Box>
+                </Box>
+
+                <Divider sx={{ my: 3 }} />
+
+                {/* 24/7 Support */}
+                <Box sx={{ display: 'flex', gap: 2 }}>
+                  <Box
                     sx={{
-                      color: '#4A4A4A',
-                      mb: 3,
-                      fontSize: '15px',
-                      lineHeight: 1.8,
+                      width: 48,
+                      height: 48,
+                      borderRadius: 2,
+                      backgroundColor: 'rgba(48, 65, 13, 0.1)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
                     }}
                   >
-                    We provide cleanliness and safety guidelines to help you prepare your space to the highest standards — ensuring every guest enjoys a safe and pleasant stay.
-                  </Typography>
-                  <Typography
-                    variant="body1"
-                    sx={{
-                      color: '#4A4A4A',
-                      fontSize: '15px',
-                      lineHeight: 1.8,
-                    }}
-                  >
-                    Our dedicated support team is available anytime, day or night, to help with bookings, safety concerns, or hosting questions.
-                  </Typography>
+                    <SupportAgentIcon sx={{ color: '#30410D', fontSize: 28 }} />
+                  </Box>
+                  <Box>
+                    <Typography
+                      variant="h6"
+                      sx={{
+                        fontWeight: 600,
+                        color: '#1C1C1C',
+                        mb: 0.5,
+                        fontSize: '18px',
+                      }}
+                    >
+                      24/7 Support
+                    </Typography>
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        color: '#6B6B6B',
+                        fontSize: '14px',
+                        lineHeight: 1.7,
+                      }}
+                    >
+                      All payments are processed securely through the platform, protecting you from fraud and ensuring your earnings are safely deposited after every stay.
+                    </Typography>
+                  </Box>
                 </Box>
               </Card>
             </Container>
@@ -709,294 +844,307 @@ export default function GetStarted() {
 
           {/* Section 5: Ready to start hosting? */}
           <Box
+            id="subscription-section"
             sx={{
-              py: 8,
+              py: 12,
               px: 3,
               textAlign: 'center',
               backgroundColor: '#fff',
             }}
           >
             <Container maxWidth="md">
-              <Typography
-                variant="h3"
+              <Box sx={{ textAlign: 'center', mb: 5 }}>
+                <Typography
+                  variant="h3"
+                  sx={{
+                    fontWeight: 700,
+                    color: '#30410D',
+                    mb: 2,
+                    fontSize: { xs: '28px', md: '36px' },
+                  }}
+                >
+                  Start your hosting journey today
+                </Typography>
+                <Typography
+                  variant="body1"
+                  sx={{
+                    color: '#6B6B6B',
+                    fontSize: '16px',
+                    lineHeight: 1.6,
+                  }}
+                >
+                  Get full access to all hosting features with our 3 month subscription plan.
+                </Typography>
+              </Box>
+
+              <Card
                 sx={{
-                  fontWeight: 700,
-                  color: '#1C1C1C',
-                  mb: 4,
-                  fontSize: { xs: '28px', md: '36px' },
+                  p: { xs: 3, md: 4 },
+                  borderRadius: 3,
+                  boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
+                  backgroundColor: '#fff',
+                  maxWidth: 500,
+                  mx: 'auto',
                 }}
               >
-                Ready to start hosting?
-              </Typography>
-              <Button
-                variant="contained"
-                size="large"
-                onClick={handleGetStarted}
-                sx={{
-                  backgroundColor: '#30410D',
-                  color: '#fff',
-                  px: 5,
-                  py: 1.8,
-                  borderRadius: 2,
-                  textTransform: 'none',
-                  fontSize: '18px',
-                  fontWeight: 600,
-                  '&:hover': { backgroundColor: '#1C1C1C' },
-                }}
-              >
-                Continue to Subscription
-              </Button>
+                <Typography
+                  variant="h5"
+                  sx={{
+                    fontWeight: 700,
+                    color: '#1C1C1C',
+                    textAlign: 'center',
+                    mb: 1.5,
+                    fontSize: { xs: '20px', md: '24px' },
+                  }}
+                >
+                  3 Month Subscription Plan
+                </Typography>
+                
+                <Box sx={{ textAlign: 'center', mb: 2 }}>
+                  <Typography
+                    component="span"
+                    sx={{
+                      fontSize: { xs: '32px', md: '36px' },
+                      fontWeight: 700,
+                      color: '#DE7001',
+                    }}
+                  >
+                    ₱3,000
+                  </Typography>
+                  <Typography
+                    component="span"
+                    sx={{
+                      fontSize: '16px',
+                      color: '#757575',
+                      ml: 1,
+                    }}
+                  >
+                    / quarterly
+                  </Typography>
+                </Box>
+
+                <Divider sx={{ mb: 3 }} />
+
+                <Typography
+                  variant="h6"
+                  sx={{
+                    fontWeight: 600,
+                    color: '#1C1C1C',
+                    mb: 2,
+                    textAlign: 'left',
+                    fontSize: '16px',
+                  }}
+                >
+                  What's included:
+                </Typography>
+
+                <Box sx={{ mb: 3 }}>
+                  {[
+                    'Unlimited property listings',
+                    'Advanced booking management tools',
+                    'Priority 24/7 customer support',
+                    'Comprehensive analytics dashboard',
+                    'Host protection insurance up to $1M',
+                    'Verified guest screening',
+                    '2% platform fee on all bookings',
+                    'Marketing tools and promotion features',
+                  ].map((feature, index) => (
+                    <Box
+                      key={index}
+                      sx={{
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        mb: 1.5,
+                      }}
+                    >
+                      <CheckCircleIcon
+                        sx={{
+                          color: '#70873F',
+                          fontSize: 20,
+                          mr: 1.5,
+                          mt: 0.2,
+                        }}
+                      />
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          color: '#4A4A4A',
+                          fontSize: '14px',
+                          lineHeight: 1.6,
+                        }}
+                      >
+                        {feature}
+                      </Typography>
+                    </Box>
+                  ))}
+                </Box>
+
+                <Box 
+                  sx={{ 
+                    mb: 2,
+                    p: 1,
+                    borderRadius: 2,
+                    border: '1px solid',
+                    borderColor: agreedToTerms ? '#70873F' : '#e0e0e0',
+                    backgroundColor: agreedToTerms ? 'rgba(112, 135, 63, 0.05)' : '#fafafa',
+                    transition: 'all 0.3s ease',
+                  }}
+                >
+                  <Box display="flex" alignItems="flex-start">
+                    <Checkbox
+                      checked={agreedToTerms}
+                      onChange={(e) => setAgreedToTerms(e.target.checked)}
+                      sx={{
+                        mt: -1,
+                        '& .MuiSvgIcon-root': { fontSize: 22 },
+                        color: '#70873F',
+                        '&.Mui-checked': { color: '#70873F' }
+                      }}
+                    />
+                    <Typography
+                      variant="body2"
+                      sx={{ 
+                        fontSize: '13px', 
+                        lineHeight: 2,
+                        color: '#333'
+                      }}
+                    >
+                      I agree to the{' '}
+                      <Box
+                        component="span"
+                        sx={{
+                          color: "#70873F",
+                          cursor: "pointer",
+                          fontWeight: 600,
+                          textDecoration: 'underline',
+                          textDecorationColor: 'transparent',
+                          transition: 'all 0.2s ease',
+                          '&:hover': {
+                            textDecorationColor: '#70873F',
+                            color: '#30410D'
+                          }
+                        }}
+                      >
+                        Terms of Service
+                      </Box>
+                      {' '}and{' '}
+                      <Box
+                        component="span"
+                        sx={{
+                          color: "#70873F",
+                          cursor: "pointer",
+                          fontWeight: 600,
+                          textDecoration: 'underline',
+                          textDecorationColor: 'transparent',
+                          transition: 'all 0.2s ease',
+                          '&:hover': {
+                            textDecorationColor: '#70873F',
+                            color: '#30410D'
+                          }
+                        }}
+                      >
+                        Privacy Policy
+                      </Box>
+                    </Typography>
+                  </Box>
+                </Box>
+
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <div ref={paypal}></div>
+                </Box>
+              </Card>
             </Container>
           </Box>
         </Box>
       )}
 
-      {step === 2 && (
-        <Box sx={{ py: 8, px: 3, backgroundColor: '#f5f5f5', minHeight: '100vh' }}>
-          <Container maxWidth="md">
-            <Box sx={{ textAlign: 'center', mb: 5 }}>
-              <Typography
-                variant="h3"
-                sx={{
-                  fontWeight: 700,
-                  color: '#1C1C1C',
-                  mb: 2,
-                  fontSize: { xs: '28px', md: '36px' },
-                }}
-              >
-                Start your hosting journey today
-              </Typography>
-              <Typography
-                variant="body1"
-                sx={{
-                  color: '#6B6B6B',
-                  fontSize: '16px',
-                  lineHeight: 1.6,
-                }}
-              >
-                Get full access to all hosting features with our 3 month subscription plan.
-              </Typography>
-            </Box>
-
-            <Card
-              sx={{
-                p: { xs: 4, md: 5 },
-                borderRadius: 4,
-                boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
-                backgroundColor: '#fff',
-              }}
-            >
-              <Typography
-                variant="h4"
-                sx={{
-                  fontWeight: 700,
-                  color: '#1C1C1C',
-                  textAlign: 'center',
-                  mb: 2,
-                  fontSize: { xs: '24px', md: '28px' },
-                }}
-              >
-                3 Month Subscription Plan
-              </Typography>
-              
-              <Box sx={{ textAlign: 'center', mb: 3 }}>
-                <Typography
-                  component="span"
-                  sx={{
-                    fontSize: { xs: '40px', md: '48px' },
-                    fontWeight: 700,
-                    color: '#DE7001',
-                  }}
-                >
-                  ₱3,000
-                </Typography>
-                <Typography
-                  component="span"
-                  sx={{
-                    fontSize: '18px',
-                    color: '#757575',
-                    ml: 1,
-                  }}
-                >
-                  / quarterly
-                </Typography>
-              </Box>
-
-              <Divider sx={{ mb: 4 }} />
-
-              <Typography
-                variant="h6"
-                sx={{
-                  fontWeight: 600,
-                  color: '#1C1C1C',
-                  mb: 3,
-                  fontSize: '18px',
-                }}
-              >
-                What's included:
-              </Typography>
-
-              <Box sx={{ mb: 4 }}>
-                {[
-                  'Unlimited property listings',
-                  'Advanced booking management tools',
-                  'Priority 24/7 customer support',
-                  'Comprehensive analytics dashboard',
-                  'Host protection insurance up to $1M',
-                  'Verified guest screening',
-                  '2% platform fee on all bookings',
-                  'Marketing tools and promotion features',
-                ].map((feature, index) => (
-                  <Box
-                    key={index}
-                    sx={{
-                      display: 'flex',
-                      alignItems: 'flex-start',
-                      mb: 2,
-                    }}
-                  >
-                    <CheckCircleIcon
-                      sx={{
-                        color: '#70873F',
-                        fontSize: 24,
-                        mr: 2,
-                        mt: 0.3,
-                      }}
-                    />
-                    <Typography
-                      variant="body1"
-                      sx={{
-                        color: '#4A4A4A',
-                        fontSize: '15px',
-                        lineHeight: 1.8,
-                      }}
-                    >
-                      {feature}
-                    </Typography>
-                  </Box>
-                ))}
-              </Box>
-
-              <Box sx={{ mb: 3 }}>
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={agreedToTerms}
-                      onChange={(e) => setAgreedToTerms(e.target.checked)}
-                      sx={{
-                        color: '#70873F',
-                        '&.Mui-checked': {
-                          color: '#70873F',
-                        },
-                      }}
-                    />
-                  }
-                  label={
-                    <Typography variant="body2" sx={{ color: '#6B6B6B' }}>
-                      I agree to the{' '}
-                      <Typography
-                        component="span"
-                        sx={{ color: '#70873F', fontWeight: 500, cursor: 'pointer' }}
-                      >
-                        Terms of Service
-                      </Typography>
-                      {' '}and{' '}
-                      <Typography
-                        component="span"
-                        sx={{ color: '#70873F', fontWeight: 500, cursor: 'pointer' }}
-                      >
-                        Privacy Policy
-                      </Typography>
-                    </Typography>
-                  }
-                />
-              </Box>
-
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <div ref={paypal}></div>
-                
-                <Button
-                  fullWidth
-                  variant="contained"
-                  size="large"
-                  disabled={!agreedToTerms}
-                  sx={{
-                    backgroundColor: '#1C1C1C',
-                    color: '#fff',
-                    py: 1.8,
-                    borderRadius: 2,
-                    textTransform: 'none',
-                    fontSize: '16px',
-                    fontWeight: 600,
-                    '&:hover': { backgroundColor: '#000' },
-                    '&:disabled': {
-                      backgroundColor: '#ccc',
-                      color: '#888',
-                    },
-                  }}
-                >
-                  <Box
-                    component="span"
-                    sx={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: 1,
-                    }}
-                  >
-                    <Box
-                      component="span"
-                      sx={{
-                        display: 'inline-block',
-                        width: 24,
-                        height: 16,
-                        mr: 1,
-                      }}
-                    >
-                      💳
-                    </Box>
-                    Debit or Credit Card
-                  </Box>
-                </Button>
-              </Box>
-            </Card>
-          </Container>
-        </Box>
-      )}
-
-      {step === 3 && (
-        <Box sx={{ textAlign: 'center', mt: 12 }}>
+      {/* Success Modal */}
+      <Modal
+        open={openSuccessModal}
+        onClose={() => {}}
+        aria-labelledby="success-modal-title"
+        aria-describedby="success-modal-description"
+        disableEscapeKeyDown
+        sx={{ zIndex: 9999 }}
+      >
+        <Box
+          sx={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            width: { xs: '90%', sm: 500 },
+            bgcolor: '#fff',
+            borderRadius: 3,
+            boxShadow: 24,
+            p: 4,
+            textAlign: 'center',
+            outline: 'none',
+          }}
+        >
+          <Box
+            sx={{
+              width: 80,
+              height: 80,
+              borderRadius: '50%',
+              backgroundColor: 'rgba(112, 135, 63, 0.1)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              mx: 'auto',
+              mb: 3,
+            }}
+          >
+            <CheckCircleIcon sx={{ color: '#70873F', fontSize: 50 }} />
+          </Box>
+          
           <Typography
+            id="success-modal-title"
             variant="h4"
             sx={{
               fontWeight: 700,
               color: '#30410D',
               mb: 2,
+              fontSize: { xs: '24px', md: '28px' },
             }}
           >
             Welcome to the PineLodge Host Family!
           </Typography>
-          <Typography variant="body1" sx={{ color: 'text.secondary', mb: 3 }}>
+          
+          <Typography
+            id="success-modal-description"
+            variant="body1"
+            sx={{
+              color: '#6B6B6B',
+              mb: 4,
+              fontSize: '16px',
+              lineHeight: 1.6,
+            }}
+          >
             Your host account is now active. Begin listing your cozy Baguio
             stays and start welcoming guests.
           </Typography>
+          
           <Button
             variant="contained"
             size="large"
+            fullWidth
             sx={{
               backgroundColor: '#DE7001',
               color: '#fff',
-              px: 4,
-              py: 1.2,
+              py: 1.5,
               borderRadius: 2,
-              '&:hover': { backgroundColor: '#DE7001' },
+              fontSize: '16px',
+              fontWeight: 600,
+              textTransform: 'none',
+              '&:hover': { backgroundColor: '#C55F01' },
             }}
             onClick={handleProceed}
           >
             Proceed to Listing
           </Button>
         </Box>
-      )}
+      </Modal>
     </Box>
   );
 }

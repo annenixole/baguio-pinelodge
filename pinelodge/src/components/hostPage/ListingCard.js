@@ -102,17 +102,27 @@ export default function ListingCard({ listing, onEdit, onDelete, onView, onPubli
               position: "absolute",
               bottom: 0,
               left: 0,
+              right: 0,
               bgcolor: "#DE7001",
               color: "#fff",
               fontWeight: 700,
-              fontSize: "0.75rem",
+              fontSize: "0.8rem",
               px: 2,
               py: 0.5,
-              borderTopRightRadius: "6px",
-              borderBottomRightRadius: "6px",
+              display: "flex",
+              alignItems: "center",
+              gap: 1,
             }}
           >
-            {listing.promotion.percentageDiscount}% OFF DISCOUNT
+            <span>{listing.promotion.percentageDiscount}% OFF DISCOUNT</span>
+            {listing.promotion?.actualDiscountedPrice && (
+              <>
+                <span>|</span>
+                <span>₱{Number(listing.promotion.actualDiscountedPrice).toLocaleString()}</span>
+                <span>🎟</span>
+                <span>After Voucher</span>
+              </>
+            )}
           </Box>
         )}
 
@@ -225,6 +235,7 @@ export default function ListingCard({ listing, onEdit, onDelete, onView, onPubli
           }}
         >
           <Box>
+            {/* Regular price */}
             <Typography
               sx={{
                 fontWeight: 700,
@@ -232,13 +243,16 @@ export default function ListingCard({ listing, onEdit, onDelete, onView, onPubli
                 color: isDraft ? "#666" : "#333",
               }}
             >
-              ₱{price?.toLocaleString() || "0"}{" "}
+              <Box component="span" sx={{ textDecoration: listing.promotion ? "line-through" : "none" }}>
+                ₱{price?.toLocaleString() || "0"}
+              </Box>{" "}
               <Typography
                 component="span"
                 sx={{
                   fontWeight: 400,
                   fontSize: "0.85rem",
                   color: "text.secondary",
+                  textDecoration: "none",
                 }}
               >
                 {type === "accommodation"
@@ -246,29 +260,6 @@ export default function ListingCard({ listing, onEdit, onDelete, onView, onPubli
                   : "/ per person"}
               </Typography>
             </Typography>
-
-            {listing.promotion && listing.promotion.actualDiscountedPrice && (
-              <Typography
-                sx={{
-                  fontWeight: 700,
-                  fontSize: "1rem",
-                  color: "#DE7001",
-                }}
-              >
-                ₱{Number(listing.promotion.actualDiscountedPrice).toLocaleString()}{" "}
-                <Typography
-                  component="span"
-                  sx={{
-                    fontWeight: 500,
-                    fontSize: "0.85rem",
-                    color: "#E68600",
-                    ml: 0.5,
-                  }}
-                >
-                  🎟 After Voucher
-                </Typography>
-              </Typography>
-            )}
           </Box>
 
 

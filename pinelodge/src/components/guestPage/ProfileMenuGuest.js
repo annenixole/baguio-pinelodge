@@ -98,7 +98,7 @@ export default function ProfileMenuGuest() {
       >
         <Avatar
           sx={{
-            bgcolor: "#70873F",
+            bgcolor: "#30410D",
             width: 35,
             height: 35,
             fontSize: 16,
@@ -148,7 +148,7 @@ export default function ProfileMenuGuest() {
         <MenuItem onClick={() => navigate("/guest-profile")}>Profile Settings</MenuItem>
         <MenuItem onClick={() => navigate("/guest-account")}>Account Settings</MenuItem>
         <MenuItem onClick={() => navigate("/bookings")}>My Bookings</MenuItem>
-        <MenuItem onClick={() => navigate("/favorites")}>Wishlist</MenuItem>
+        <MenuItem onClick={() => { handleClose(); navigate("/Favorites"); }}>Wishlist</MenuItem>
         <MenuItem onClick={() => navigate("/")}>Switch to Hosting</MenuItem>
         <Divider/>
         <MenuItem onClick={handleLogout}>Logout</MenuItem>

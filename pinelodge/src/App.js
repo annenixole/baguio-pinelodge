@@ -8,7 +8,11 @@ import HostListing from './components/hostPage/ListingHost';
 import HostPayment from './components/hostPage/PaymentHost';
 import GetStarted from './components/hostPage/GetStarted';
 import GuestPage from './components/guestPage/GuestPage'; 
+import AccomGuest from './components/guestPage/AccomGuest';
+import ExpGuest from './components/guestPage/ExpGuest';
+import ServGuest from './components/guestPage/ServGuest';
 import BookingPage from './components/guestPage/BookingPage';
+import Favorites from './components/guestPage/Favorites';
 import ListingLink from './components/guestPage/ListingLink';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import React from 'react';
@@ -29,7 +33,11 @@ function App() {
         <Route path='/ListingLink' element={<ListingLink />} />
 
         <Route path='/guestPage/GuestPage' element= {<ProtectedRoute> <GuestPage/> </ProtectedRoute>}/>
+        <Route path='/AccomGuest' element= {<ProtectedRoute> <AccomGuest/> </ProtectedRoute>}/>
+        <Route path='/ExpGuest' element= {<ProtectedRoute> <ExpGuest/> </ProtectedRoute>}/>
+        <Route path='/ServGuest' element= {<ProtectedRoute> <ServGuest/> </ProtectedRoute>}/>
         <Route path='/BookingPage' element= {<ProtectedRoute> <BookingPage/> </ProtectedRoute>}/>
+        <Route path='/Favorites' element= {<ProtectedRoute> <Favorites/> </ProtectedRoute>}/>
        
         <Route path="/hostPage/HomeHost" element={<ProtectedRoute> <HostHome /> </ProtectedRoute> }/>
         <Route path="/hostPage/SidebarHost" element={<ProtectedRoute> <HostSidebar /> </ProtectedRoute>}/>
