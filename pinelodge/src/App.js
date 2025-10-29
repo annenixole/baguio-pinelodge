@@ -32,10 +32,13 @@ function App() {
         {/* Public listing link - no login required */}
         <Route path='/ListingLink' element={<ListingLink />} />
 
+        {/* Public listing pages - accessible to all users */}
+        <Route path='/AccomGuest' element={<AccomGuest/>}/>
+        <Route path='/ExpGuest' element={<ExpGuest/>}/>
+        <Route path='/ServGuest' element={<ServGuest/>}/>
+
+        {/* Protected routes - require login */}
         <Route path='/guestPage/GuestPage' element= {<ProtectedRoute> <GuestPage/> </ProtectedRoute>}/>
-        <Route path='/AccomGuest' element= {<ProtectedRoute> <AccomGuest/> </ProtectedRoute>}/>
-        <Route path='/ExpGuest' element= {<ProtectedRoute> <ExpGuest/> </ProtectedRoute>}/>
-        <Route path='/ServGuest' element= {<ProtectedRoute> <ServGuest/> </ProtectedRoute>}/>
         <Route path='/BookingPage' element= {<ProtectedRoute> <BookingPage/> </ProtectedRoute>}/>
         <Route path='/Favorites' element= {<ProtectedRoute> <Favorites/> </ProtectedRoute>}/>
        

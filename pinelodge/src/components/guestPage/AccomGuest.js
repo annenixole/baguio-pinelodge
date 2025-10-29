@@ -6,6 +6,7 @@ import Calendar from "react-calendar";
 import "react-calendar/dist/Calendar.css";
 import NavbarGuest from "./NavbarGuest";
 import ListingCardGuest from "./ListingCardGuest";
+import ListingModal from "../hostPage/ListingModal.js";
 import { collectionGroup, getDocs } from "firebase/firestore";
 import { db } from "../firebase.js";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -13,6 +14,8 @@ import { useNavigate, useLocation } from "react-router-dom";
 export default function AccomGuest() {
   const [listings, setListings] = useState([]);
   const [filteredListings, setFilteredListings] = useState([]);
+  const [selectedListing, setSelectedListing] = useState(null);
+  const [modalOpen, setModalOpen] = useState(false);
   const [filterType, setFilterType] = useState("Accommodation");
   const [filterLocation, setFilterLocation] = useState("");
   const [filterDates, setFilterDates] = useState("");
@@ -20,6 +23,7 @@ export default function AccomGuest() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 6;
   const [isSearchResult, setIsSearchResult] = useState(false);
+  const [appliedFilters, setAppliedFilters] = useState({ location: "", guests: "" });
   
   // Date picker states
   const [dateRange, setDateRange] = useState([null, null]);
@@ -57,6 +61,12 @@ export default function AccomGuest() {
           if (dates) setFilterDates(dates);
           if (searchDateRange) setDateRange(searchDateRange);
           
+          // Apply filters immediately when coming from search
+          setAppliedFilters({ 
+            location: searchLocation || "", 
+            guests: guests || "" 
+          });
+          
           // Mark as search result
           setIsSearchResult(true);
         } else {
@@ -72,17 +82,17 @@ export default function AccomGuest() {
     fetchAccommodations();
   }, [location]);
 
-  // Apply filters
+  // Apply filters only when appliedFilters change
   useEffect(() => {
-    console.log("AccomGuest - Applying filters:", { filterLocation, filterGuests, listingsCount: listings.length });
+    console.log("AccomGuest - Applying filters:", { appliedFilters, listingsCount: listings.length });
     let filtered = [...listings];
 
     // Filter by location (skip if "All Areas" or empty)
-    if (filterLocation && filterLocation !== "All Areas") {
-      console.log("AccomGuest - Filtering by location:", filterLocation);
+    if (appliedFilters.location && appliedFilters.location !== "All Areas") {
+      console.log("AccomGuest - Filtering by location:", appliedFilters.location);
       filtered = filtered.filter((listing) => {
         const listingArea = listing.address?.area || listing.location || "";
-        const matches = listingArea === filterLocation || listingArea.includes(filterLocation.replace("Near ", ""));
+        const matches = listingArea === appliedFilters.location || listingArea.includes(appliedFilters.location.replace("Near ", ""));
         console.log("AccomGuest - Listing:", listing.title, "Area:", listingArea, "Matches:", matches);
         return matches;
       });
@@ -90,10 +100,10 @@ export default function AccomGuest() {
     }
 
     // Filter by guests (skip if empty - "Any guests")
-    if (filterGuests && filterGuests !== "") {
-      console.log("AccomGuest - Filtering by guests:", filterGuests);
+    if (appliedFilters.guests && appliedFilters.guests !== "") {
+      console.log("AccomGuest - Filtering by guests:", appliedFilters.guests);
       // Extract number from "1 guest", "2 guests", "5+ guests", etc.
-      const guestCount = parseInt(filterGuests.match(/\d+/)?.[0] || filterGuests);
+      const guestCount = parseInt(appliedFilters.guests.match(/\d+/)?.[0] || appliedFilters.guests);
       filtered = filtered.filter((listing) => {
         const listingCapacity = listing.capacity || listing.maxGuests || 0;
         const matches = listingCapacity >= guestCount;
@@ -109,7 +119,7 @@ export default function AccomGuest() {
     console.log("AccomGuest - Final filtered count:", filtered.length);
     setFilteredListings(filtered);
     setCurrentPage(1); // Reset to first page when filters change
-  }, [filterLocation, filterGuests, listings]);
+  }, [appliedFilters, listings]);
 
   // Handle date picker
   const handleDateClick = () => {
@@ -160,11 +170,17 @@ export default function AccomGuest() {
   };
 
   const handleViewListing = (listing) => {
-    navigate('/BookingPage', { state: { listing } });
+    setSelectedListing(listing);
+    setModalOpen(true);
   };
 
   const handleSearch = () => {
-    // Trigger filter application (already handled by useEffect)
+    // Apply the current filter values
+    setAppliedFilters({
+      location: filterLocation,
+      guests: filterGuests
+    });
+    setIsSearchResult(true);
     console.log("Search triggered with filters:", {
       type: filterType,
       location: filterLocation,
@@ -179,6 +195,7 @@ export default function AccomGuest() {
     setFilterGuests("");
     setFilterDates("");
     setDateRange([null, null]);
+    setAppliedFilters({ location: "", guests: "" });
     setIsSearchResult(false);
     setCurrentPage(1);
     
@@ -581,6 +598,13 @@ export default function AccomGuest() {
           </Box>
         )}
       </Container>
+
+      {/* Listing Modal */}
+      <ListingModal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        listing={selectedListing}
+      />
     </Box>
   );
 }

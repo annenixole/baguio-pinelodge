@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {Card,CardContent,CardMedia,Typography,Box,Chip,Button,IconButton,Menu,MenuItem,Tooltip,} from "@mui/material";
 import LocationOnIcon from "@mui/icons-material/LocationOn";
 import PeopleIcon from "@mui/icons-material/People";
@@ -12,17 +12,27 @@ import StarIcon from "@mui/icons-material/Star";
 import FavoriteIcon from "@mui/icons-material/Favorite";
 import FavoriteBorderIcon from "@mui/icons-material/FavoriteBorder";
 import { useNavigate } from "react-router-dom";
+import { auth } from "../firebase.js";
 
 export default function ListingCardGuest({ listing, onView, hideTypeLabel = false }) {
     const navigate = useNavigate();
     const [shareAnchorEl, setShareAnchorEl] = useState(null);
     const [copySuccess, setCopySuccess] = useState(false);
+    const [isUserSignedIn, setIsUserSignedIn] = useState(false);
     
     // Check if listing is already favorited on mount
     const [isFavorite, setIsFavorite] = useState(() => {
         const favorites = JSON.parse(localStorage.getItem('favorites') || '[]');
         return favorites.some(fav => fav.id === listing.id);
     });
+
+    // Check if user is signed in
+    useEffect(() => {
+        const unsubscribe = auth.onAuthStateChanged((user) => {
+            setIsUserSignedIn(!!user);
+        });
+        return () => unsubscribe();
+    }, []);
 
     const {
         title,
@@ -176,27 +186,29 @@ export default function ListingCardGuest({ listing, onView, hideTypeLabel = fals
                     </Box>
                 )}
 
-                {/* Favorite (Heart) Button */}
-                <Tooltip title={isFavorite ? "Remove from favorites" : "Add to favorites"}>
-                    <IconButton
-                        onClick={handleFavoriteClick}
-                        sx={{
-                            position: "absolute",
-                            top: 10,
-                            right: 55,
-                            bgcolor: "#ffffffcc",
-                            "&:hover": { bgcolor: "#f0f0f0" },
-                            boxShadow: 2,
-                        }}
-                        size="small"
-                    >
-                        {isFavorite ? (
-                            <FavoriteIcon fontSize="small" sx={{ color: "#de4001ff" }} />
-                        ) : (
-                            <FavoriteBorderIcon fontSize="small" />
-                        )}
-                    </IconButton>
-                </Tooltip>
+                {/* Favorite (Heart) Button - Only show when user is signed in */}
+                {isUserSignedIn && (
+                    <Tooltip title={isFavorite ? "Remove from favorites" : "Add to favorites"}>
+                        <IconButton
+                            onClick={handleFavoriteClick}
+                            sx={{
+                                position: "absolute",
+                                top: 10,
+                                right: 55,
+                                bgcolor: "#ffffffcc",
+                                "&:hover": { bgcolor: "#f0f0f0" },
+                                boxShadow: 2,
+                            }}
+                            size="small"
+                        >
+                            {isFavorite ? (
+                                <FavoriteIcon fontSize="small" sx={{ color: "#de4001ff" }} />
+                            ) : (
+                                <FavoriteBorderIcon fontSize="small" />
+                            )}
+                        </IconButton>
+                    </Tooltip>
+                )}
 
                 {/* Share Button */}
                 <Tooltip title="Share">
@@ -205,7 +217,7 @@ export default function ListingCardGuest({ listing, onView, hideTypeLabel = fals
                         sx={{
                             position: "absolute",
                             top: 10,
-                            right: 10,
+                            right: isUserSignedIn ? 10 : 10,
                             bgcolor: "#ffffffcc",
                             "&:hover": { bgcolor: "#f0f0f0" },
                             boxShadow: 2,
@@ -348,7 +360,11 @@ export default function ListingCardGuest({ listing, onView, hideTypeLabel = fals
                     }}
                     onClick={(e) => {
                         e.stopPropagation();
-                         navigate("/BookingPage", { state: { listing } });
+                        if (isUserSignedIn) {
+                            navigate("/BookingPage", { state: { listing } });
+                        } else {
+                            navigate("/SignIn");
+                        }
                     }}
                 >
                     Book Now

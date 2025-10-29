@@ -4,25 +4,40 @@ import { AppBar, Toolbar, Typography, Button, Box, IconButton, Drawer, List, Lis
 import MenuIcon from "@mui/icons-material/Menu";
 import FavoriteIcon from "@mui/icons-material/Favorite";
 import NotificationsIcon from "@mui/icons-material/Notifications";
+import AccountCircleIcon from "@mui/icons-material/AccountCircle";
 import logo from "../../elements/BaguioPinelodgelogo.png";
 import logoCursor from "../../elements/logoCursor.png";
 import { collectionGroup, getDocs } from "firebase/firestore";
-import { db } from "../firebase.js";
+import { db, auth } from "../firebase.js";
 import ProfileMenuGuest from "./ProfileMenuGuest";
 
 export default function NavbarGuest() {
   const [open, setOpen] = useState(false);
   const [favoritesCount, setFavoritesCount] = useState(0);
   const [notificationsCount, setNotificationsCount] = useState(3); // Default to 3 for demo
+  const [isUserSignedIn, setIsUserSignedIn] = useState(false);
   const navigate = useNavigate();
 
   const toggleDrawer = (state) => () => setOpen(state);
+
+  const handleRoleSelect = (role) => {
+    localStorage.setItem("selectedRole", role);
+    navigate("/SignIn");
+  };
 
   const menuItems = [
     { name: "Accommodations", path: "/AccomGuest" },
     { name: "Experiences", path: "/ExpGuest" },
     { name: "Services", path: "/ServGuest" }
   ];
+
+  // Check if user is signed in
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      setIsUserSignedIn(!!user);
+    });
+    return () => unsubscribe();
+  }, []);
 
   // Update favorites count
   useEffect(() => {
@@ -97,36 +112,78 @@ export default function NavbarGuest() {
             ))}
           </Box>
 
-          {/* ✅ Profile Menu for Guests */}
+          {/* ✅ Right side - Conditional based on sign-in status */}
           <Box display={{ xs: "none", md: "flex" }} alignItems="center" gap={2}>
-            <IconButton
-              onClick={() => navigate('/Favorites')}
-              sx={{
-                color: "#30410D",
-                "&:hover": { backgroundColor: "#dceeb46c" }
-              }}
-            >
-              <Badge badgeContent={favoritesCount} color="error">
-                <FavoriteIcon />
-              </Badge>
-            </IconButton>
-            
-            <IconButton
-              onClick={() => {
-                // TODO: Add notification navigation/modal
-                console.log('Notifications clicked');
-              }}
-              sx={{
-                color: "#30410D",
-                "&:hover": { backgroundColor: "#dceeb46c" }
-              }}
-            >
-              <Badge badgeContent={notificationsCount} color="error">
-                <NotificationsIcon />
-              </Badge>
-            </IconButton>
-            
-            <ProfileMenuGuest />
+            {isUserSignedIn ? (
+              <>
+                {/* Signed-in user: Show favorites, notifications, profile */}
+                <IconButton
+                  onClick={() => navigate('/Favorites')}
+                  sx={{
+                    color: "#30410D",
+                    "&:hover": { backgroundColor: "#dceeb46c" }
+                  }}
+                >
+                  <Badge badgeContent={favoritesCount} color="error">
+                    <FavoriteIcon />
+                  </Badge>
+                </IconButton>
+
+                <IconButton
+                  onClick={() => {
+                    // TODO: Add notification navigation/modal
+                    console.log('Notifications clicked');
+                  }}
+                  sx={{
+                    color: "#30410D",
+                    "&:hover": { backgroundColor: "#dceeb46c" }
+                  }}
+                >
+                  <Badge badgeContent={notificationsCount} color="error">
+                    <NotificationsIcon />
+                  </Badge>
+                </IconButton>
+
+                <ProfileMenuGuest />
+              </>
+            ) : (
+              <>
+                {/* Not signed in: Show Become a host (text) and Get Started (button with icon) */}
+                <Typography
+                  onClick={() => handleRoleSelect("host")}
+                  sx={{
+                    color: "#6B7A4D",
+                    fontSize: "1.1rem",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    "&:hover": { color: "#30410D" }
+                  }}
+                >
+                  Become a host
+                </Typography>
+                <Button
+                  onClick={() => handleRoleSelect("customer")}
+                  startIcon={<AccountCircleIcon />}
+                  variant="outlined"
+                  sx={{
+                    color: "#6B7A4D",
+                    borderColor: "#6B7A4D",
+                    fontSize: "1.1rem",
+                    padding: "8px 20px",
+                    backgroundColor: "#fff",
+                    textTransform: "none",
+                    borderRadius: "25px",
+                    "&:hover": {
+                      backgroundColor: "#30410D",
+                      borderColor: "#30410D",
+                      color: "#ffffffff"
+                    }
+                  }}
+                >
+                  Get Started
+                </Button>
+              </>
+            )}
           </Box>
 
           {/* Mobile Drawer */}
@@ -144,9 +201,47 @@ export default function NavbarGuest() {
                 ))}
               </List>
 
-              <Box display="flex" justifyContent="center" alignItems="center" sx={{ mt: 2 }}>
-                <ProfileMenuGuest />
-              </Box>
+              {/* Mobile: Conditional rendering based on sign-in status */}
+              {isUserSignedIn ? (
+                <Box display="flex" justifyContent="center" alignItems="center" sx={{ mt: 2 }}>
+                  <ProfileMenuGuest />
+                </Box>
+              ) : (
+                <Box display="flex" flexDirection="column" gap={2} sx={{ mt: 2, px: 2 }}>
+                  <Typography
+                    onClick={() => { handleRoleSelect("host"); setOpen(false); }}
+                    sx={{
+                      color: "#6B7A4D",
+                      fontSize: "1rem",
+                      fontWeight: 500,
+                      textAlign: "center",
+                      cursor: "pointer",
+                      "&:hover": { color: "#30410D" }
+                    }}
+                  >
+                    Become a host
+                  </Typography>
+                  <Button
+                    onClick={() => { handleRoleSelect("customer"); setOpen(false); }}
+                    startIcon={<AccountCircleIcon />}
+                    variant="outlined"
+                    sx={{
+                      color: "#6B7A4D",
+                      borderColor: "#6B7A4D",
+                      backgroundColor: "#fff",
+                      textTransform: "none",
+                      borderRadius: "25px",
+                      "&:hover": {
+                        backgroundColor: "#F5F7F0",
+                        borderColor: "#30410D",
+                        color: "#30410D"
+                      }
+                    }}
+                  >
+                    Get Started
+                  </Button>
+                </Box>
+              )}
             </Box>
           </Drawer>
         </Toolbar>
