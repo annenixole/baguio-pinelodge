@@ -21,7 +21,7 @@ export default function EditListing({ open, onClose, listing, onUpdated }) {
     barangay: "",
     photos: [],
     type: "",
-    mapUrl: "",
+    locationUrl: "",
   });
   const [newPhotos, setNewPhotos] = useState([]);
   const [inclusions, setInclusions] = useState([]);
@@ -42,7 +42,7 @@ export default function EditListing({ open, onClose, listing, onUpdated }) {
         barangay: listing.address?.barangay || "",
         photos: listing.photos || [],
         type: listing.type || "",
-        mapUrl: listing.mapUrl || "",
+        locationUrl: listing.location || "",
       });
 
       if (listing.availability?.start && listing.availability?.end) {
@@ -110,7 +110,7 @@ export default function EditListing({ open, onClose, listing, onUpdated }) {
         description: formData.description,
         price: parseFloat(formData.price),
         photos: uploadedUrls,
-        mapUrl: formData.mapUrl,
+        location: formData.locationUrl,
         inclusions,
         rules,
         address: {
@@ -411,10 +411,10 @@ export default function EditListing({ open, onClose, listing, onUpdated }) {
             {/* Map URL */}
             <TextField
               label="Location Map Link (Optional)"
-              name="mapUrl"
+              name="locationUrl"
               type="url"
               placeholder="Paste your Google Maps URL"
-              value={formData.mapUrl}
+              value={formData.locationUrl}
               onChange={handleChange}
               variant="outlined"
               fullWidth

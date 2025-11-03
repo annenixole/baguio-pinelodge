@@ -1,6 +1,7 @@
 import { Box, Typography, Button, Card, CardContent, Divider, Avatar, Grid, Stack, IconButton, } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import LocationOnIcon from "@mui/icons-material/LocationOn";
+import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import NavbarGuest from "./NavbarGuest";
 import { useLocation, useNavigate } from "react-router-dom";
 import StarIcon from "@mui/icons-material/Star";
@@ -37,7 +38,7 @@ export default function BookingPage() {
     
     // Arrival time selection
     const [showTimePicker, setShowTimePicker] = useState(false);
-    const [selectedTime, setSelectedTime] = useState("2:00 PM");
+    const [selectedTime, setSelectedTime] = useState("");
 
     // Fetch listing from URL parameter if not in state
     useEffect(() => {
@@ -438,7 +439,7 @@ export default function BookingPage() {
                                     variant="text"
                                     onClick={() => {
                                         setShowTimePicker(false);
-                                        setSelectedTime("2:00 PM");
+                                        setSelectedTime("");
                                     }}
                                     sx={{
                                         color: "gray",
@@ -494,8 +495,8 @@ export default function BookingPage() {
                                 <Typography variant="subtitle2" sx={{ mb: 1 }}>
                                     Selected Time:
                                 </Typography>
-                                <Typography sx={{ color: "#70873F", fontWeight: 600, fontSize: "1.2rem" }}>
-                                    {selectedTime}
+                                <Typography sx={{ color: selectedTime ? "#70873F" : "#999", fontWeight: 600, fontSize: "1.2rem" }}>
+                                    {selectedTime || "Please select a time"}
                                 </Typography>
                             </Box>
 
@@ -748,6 +749,31 @@ export default function BookingPage() {
                                     {listing.address?.city || "Baguio"},{" Benguet 2600"}
                                 </Typography>
                             </Box>
+                            
+                            {listing.location && (
+                                <Box sx={{ display: "flex", alignItems: "center", ml: 3, mb: 2 }}>
+                                    <Typography
+                                        component="a"
+                                        href={listing.location}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        variant="body2"
+                                        sx={{
+                                            color: "#70873F",
+                                            textDecoration: "none",
+                                            display: "flex",
+                                            alignItems: "center",
+                                            gap: 0.5,
+                                            "&:hover": {
+                                                textDecoration: "underline",
+                                            },
+                                        }}
+                                    >
+                                        View on Map
+                                        <OpenInNewIcon sx={{ fontSize: 14 }} />
+                                    </Typography>
+                                </Box>
+                            )}
 
                             <Divider sx={{ my: 2 }} />
                             <Box sx={{ display: "flex", alignItems: "center", mt: 2, mb: 1 }}>
@@ -1283,7 +1309,9 @@ export default function BookingPage() {
                                         Set
                                     </Button>
                                 </Box>
-                                <Typography sx={{ color: "text.secondary", ml: 1 }}>{selectedTime}</Typography>
+                                <Typography sx={{ color: "text.secondary", ml: 1 }}>
+                                    {selectedTime || "Not set"}
+                                </Typography>
                                 {/* ✅ Discount Section */}
                                 <Divider sx={{ my: 2 }} />
                                 <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>

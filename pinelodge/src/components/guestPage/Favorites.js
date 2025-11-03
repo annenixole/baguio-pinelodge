@@ -47,7 +47,7 @@ export default function Favorites() {
   const currentFavorites = favorites.slice(startIndex, endIndex);
 
   return (
-    <Box sx={{ minHeight: '100vh', bgcolor: '#f9f9f9' }}>
+    <Box sx={{ minHeight: '100vh', bgcolor: '#ffff' }}>
       {/* Navbar */}
       <NavbarGuest />
 

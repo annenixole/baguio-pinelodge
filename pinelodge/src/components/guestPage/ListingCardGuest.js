@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import {Card,CardContent,CardMedia,Typography,Box,Chip,Button,IconButton,Menu,MenuItem,Tooltip,} from "@mui/material";
+import {Card,CardContent,CardMedia,Typography,Box,Chip,Button,IconButton,Menu,MenuItem,Tooltip,Dialog,DialogTitle,DialogContent,DialogActions,} from "@mui/material";
 import LocationOnIcon from "@mui/icons-material/LocationOn";
 import PeopleIcon from "@mui/icons-material/People";
 import HotelIcon from "@mui/icons-material/Hotel";
@@ -11,6 +11,7 @@ import FacebookIcon from "@mui/icons-material/Facebook";
 import StarIcon from "@mui/icons-material/Star";
 import FavoriteIcon from "@mui/icons-material/Favorite";
 import FavoriteBorderIcon from "@mui/icons-material/FavoriteBorder";
+import LocalOfferIcon from "@mui/icons-material/LocalOffer";
 import { useNavigate } from "react-router-dom";
 import { auth } from "../firebase.js";
 
@@ -19,6 +20,7 @@ export default function ListingCardGuest({ listing, onView, hideTypeLabel = fals
     const [shareAnchorEl, setShareAnchorEl] = useState(null);
     const [copySuccess, setCopySuccess] = useState(false);
     const [isUserSignedIn, setIsUserSignedIn] = useState(false);
+    const [promoDetailsOpen, setPromoDetailsOpen] = useState(false);
     
     // Check if listing is already favorited on mount
     const [isFavorite, setIsFavorite] = useState(() => {
@@ -111,6 +113,7 @@ export default function ListingCardGuest({ listing, onView, hideTypeLabel = fals
     };
 
     return (
+        <>
         <Card
             sx={{
                 borderRadius: 3,
@@ -155,9 +158,13 @@ export default function ListingCardGuest({ listing, onView, hideTypeLabel = fals
                     />
                 )}
 
-                {/* ✅ Promotion Banner */}
+                {/* ✅ Promotion Banner - Clickable */}
                 {promotion?.percentageDiscount && (
                     <Box
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setPromoDetailsOpen(true);
+                        }}
                         sx={{
                             position: "absolute",
                             bottom: 0,
@@ -172,6 +179,10 @@ export default function ListingCardGuest({ listing, onView, hideTypeLabel = fals
                             display: "flex",
                             alignItems: "center",
                             gap: 1,
+                            cursor: "pointer",
+                            "&:hover": {
+                                bgcolor: "#C86001",
+                            }
                         }}
                     >
                         <span>{promotion.percentageDiscount}% OFF DISCOUNT</span>
@@ -372,5 +383,111 @@ export default function ListingCardGuest({ listing, onView, hideTypeLabel = fals
             </Box>
         </CardContent>
     </Card >
-  );
+
+    {/* Promo Details Modal */}
+    <Dialog 
+        open={promoDetailsOpen} 
+        onClose={() => setPromoDetailsOpen(false)}
+        maxWidth="sm"
+        fullWidth
+    >
+        <DialogTitle sx={{ bgcolor: "#DE7001", color: "#fff", fontWeight: 700 }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                <LocalOfferIcon />
+                Promotion Details
+            </Box>
+        </DialogTitle>
+        <DialogContent sx={{ mt: 2 }}>
+            {promotion && (
+                <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                    {/* Discount Percentage */}
+                    <Box>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 600, color: "#666", mb: 0.5 }}>
+                            Discount
+                        </Typography>
+                        <Typography variant="h5" sx={{ fontWeight: 700, color: "#DE7001" }}>
+                            {promotion.percentageDiscount}% OFF
+                        </Typography>
+                    </Box>
+
+                    {/* Original Price */}
+                    <Box>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 600, color: "#666", mb: 0.5 }}>
+                            Original Price
+                        </Typography>
+                        <Typography variant="h6" sx={{ fontWeight: 600, textDecoration: "line-through", color: "#999" }}>
+                            ₱{price?.toLocaleString() || "0"}
+                        </Typography>
+                    </Box>
+
+                    {/* Discounted Price */}
+                    {promotion.actualDiscountedPrice && (
+                        <Box>
+                            <Typography variant="subtitle2" sx={{ fontWeight: 600, color: "#666", mb: 0.5 }}>
+                                Discounted Price (After Voucher)
+                            </Typography>
+                            <Typography variant="h5" sx={{ fontWeight: 700, color: "#30410D" }}>
+                                ₱{Number(promotion.actualDiscountedPrice).toLocaleString()}
+                                <Typography component="span" sx={{ fontSize: "0.9rem", fontWeight: 400, color: "#666", ml: 1 }}>
+                                    {type === "accommodation" ? "/ per night" : "/ per person"}
+                                </Typography>
+                            </Typography>
+                        </Box>
+                    )}
+
+                    {/* Promo Period */}
+                    {promotion.startDate && promotion.endDate && (
+                        <Box>
+                            <Typography variant="subtitle2" sx={{ fontWeight: 600, color: "#666", mb: 0.5 }}>
+                                Promo Period
+                            </Typography>
+                            <Typography variant="body1">
+                                {new Date(promotion.startDate).toLocaleDateString('en-US', { 
+                                    month: 'short', 
+                                    day: 'numeric', 
+                                    year: 'numeric' 
+                                })} - {new Date(promotion.endDate).toLocaleDateString('en-US', { 
+                                    month: 'short', 
+                                    day: 'numeric', 
+                                    year: 'numeric' 
+                                })}
+                            </Typography>
+                        </Box>
+                    )}
+
+                    {/* Savings */}
+                    {promotion.actualDiscountedPrice && (
+                        <Box sx={{ 
+                            bgcolor: "#f0f7f0", 
+                            p: 2, 
+                            borderRadius: 2, 
+                            border: "1px solid #70873F" 
+                        }}>
+                            <Typography variant="subtitle2" sx={{ fontWeight: 600, color: "#30410D", mb: 0.5 }}>
+                                You Save
+                            </Typography>
+                            <Typography variant="h6" sx={{ fontWeight: 700, color: "#30410D" }}>
+                                ₱{(price - promotion.actualDiscountedPrice).toLocaleString()}
+                            </Typography>
+                        </Box>
+                    )}
+                </Box>
+            )}
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+            <Button 
+                onClick={() => setPromoDetailsOpen(false)}
+                variant="contained"
+                sx={{
+                    bgcolor: "#30410D",
+                    color: "#fff",
+                    textTransform: "none",
+                    "&:hover": { bgcolor: "#70873F" }
+                }}
+            >
+                Close
+            </Button>
+        </DialogActions>
+    </Dialog>
+  </> );
 }

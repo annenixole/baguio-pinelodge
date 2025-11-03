@@ -8,6 +8,7 @@ import PeopleIcon from "@mui/icons-material/People";
 import HotelIcon from "@mui/icons-material/Hotel";
 import StarIcon from "@mui/icons-material/Star";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 
 export default function ListingModal({ open, onClose, listing }) {
     const [current, setCurrent] = useState(0);
@@ -154,6 +155,30 @@ export default function ListingModal({ open, onClose, listing }) {
                                     {listing.address?.city || "Baguio"},{" Benguet 2600"}
                                 </Typography>
                             </Box>
+                            {listing.location && (
+                                <Box sx={{ display: "flex", alignItems: "center", mt: 0.5, ml: 3 }}>
+                                    <Typography
+                                        component="a"
+                                        href={listing.location}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        variant="body2"
+                                        sx={{
+                                            color: "#70873F",
+                                            textDecoration: "none",
+                                            display: "flex",
+                                            alignItems: "center",
+                                            gap: 0.5,
+                                            "&:hover": {
+                                                textDecoration: "underline",
+                                            },
+                                        }}
+                                    >
+                                        View on Map
+                                        <OpenInNewIcon sx={{ fontSize: 14 }} />
+                                    </Typography>
+                                </Box>
+                            )}
                         </Box>
 
                         <Typography variant="h4" sx={{ fontWeight: 700, color: "#333" }}>

@@ -107,6 +107,7 @@ export default function ListingHost({ setSelectedIndex }) {
   const [area, setArea] = React.useState("");
   const [street, setStreet] = React.useState("");
   const [barangay, setBarangay] = React.useState("");
+  const [locationUrl, setLocationUrl] = React.useState("");
   // Accommodation (Step 3 - type specific)
   const [listingTitle, setListingTitle] = React.useState("");
   const [description, setDescription] = React.useState("");
@@ -201,6 +202,7 @@ export default function ListingHost({ setSelectedIndex }) {
         province: "Benguet",
         postalCode: "2600",
       },
+      location: locationUrl || "",
       createdAt: new Date(),
       inclusions: getCurrentInclusions(),
       rules: getCurrentRules(),
@@ -406,6 +408,8 @@ export default function ListingHost({ setSelectedIndex }) {
             </Typography>
             <input
               type="url"
+              value={locationUrl}
+              onChange={(e) => setLocationUrl(e.target.value)}
               placeholder="Paste your Google Maps location URL"
               style={inputStyle}
             />
