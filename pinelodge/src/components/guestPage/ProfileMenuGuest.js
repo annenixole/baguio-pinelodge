@@ -147,7 +147,7 @@ export default function ProfileMenuGuest() {
         )}
         <MenuItem onClick={() => navigate("/guest-profile")}>Profile Settings</MenuItem>
         <MenuItem onClick={() => navigate("/guest-account")}>Account Settings</MenuItem>
-        <MenuItem onClick={() => navigate("/bookings")}>My Bookings</MenuItem>
+        <MenuItem onClick={() => { handleClose(); navigate("/MyBookings"); }}>My Bookings</MenuItem>
         <MenuItem onClick={() => { handleClose(); navigate("/Favorites"); }}>Wishlist</MenuItem>
         <MenuItem onClick={() => navigate("/")}>Switch to Hosting</MenuItem>
         <Divider/>

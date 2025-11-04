@@ -12,6 +12,7 @@ import StarIcon from "@mui/icons-material/Star";
 import FavoriteIcon from "@mui/icons-material/Favorite";
 import FavoriteBorderIcon from "@mui/icons-material/FavoriteBorder";
 import LocalOfferIcon from "@mui/icons-material/LocalOffer";
+import CloseIcon from "@mui/icons-material/Close";
 import { useNavigate } from "react-router-dom";
 import { auth } from "../firebase.js";
 
@@ -158,8 +159,8 @@ export default function ListingCardGuest({ listing, onView, hideTypeLabel = fals
                     />
                 )}
 
-                {/* ✅ Promotion Banner - Clickable */}
-                {promotion?.percentageDiscount && (
+                {/* ✅ Promotion Banner - Clickable - Only show when user is signed in */}
+                {isUserSignedIn && promotion?.percentageDiscount && (
                     <Box
                         onClick={(e) => {
                             e.stopPropagation();
@@ -340,7 +341,7 @@ export default function ListingCardGuest({ listing, onView, hideTypeLabel = fals
                                 color: "#333",
                             }}
                         >
-                            <Box component="span" sx={{ textDecoration: promotion ? "line-through" : "none" }}>
+                            <Box component="span" sx={{ textDecoration: (isUserSignedIn && promotion) ? "line-through" : "none" }}>
                                 ₱{price?.toLocaleString() || "0"}
                             </Box>{" "}
                             <Typography
@@ -391,103 +392,132 @@ export default function ListingCardGuest({ listing, onView, hideTypeLabel = fals
         maxWidth="sm"
         fullWidth
     >
-        <DialogTitle sx={{ bgcolor: "#DE7001", color: "#fff", fontWeight: 700 }}>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                <LocalOfferIcon />
-                Promotion Details
-            </Box>
+        <DialogTitle 
+          sx={{ 
+            bgcolor: "#E68600", 
+            color: "#fff", 
+            fontWeight: 700,
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            py: 2,
+          }}
+        >
+          Promo Details
+          <IconButton
+            onClick={() => setPromoDetailsOpen(false)}
+            sx={{ 
+              color: "#fff",
+              "&:hover": { bgcolor: "rgba(255,255,255,0.1)" }
+            }}
+          >
+            <CloseIcon />
+          </IconButton>
         </DialogTitle>
-        <DialogContent sx={{ mt: 2 }}>
+        <DialogContent sx={{ p: 5 }}>
             {promotion && (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                    {/* Discount Percentage */}
-                    <Box>
-                        <Typography variant="subtitle2" sx={{ fontWeight: 600, color: "#666", mb: 0.5 }}>
-                            Discount
-                        </Typography>
-                        <Typography variant="h5" sx={{ fontWeight: 700, color: "#DE7001" }}>
-                            {promotion.percentageDiscount}% OFF
-                        </Typography>
-                    </Box>
-
-                    {/* Original Price */}
-                    <Box>
-                        <Typography variant="subtitle2" sx={{ fontWeight: 600, color: "#666", mb: 0.5 }}>
-                            Original Price
-                        </Typography>
-                        <Typography variant="h6" sx={{ fontWeight: 600, textDecoration: "line-through", color: "#999" }}>
-                            ₱{price?.toLocaleString() || "0"}
-                        </Typography>
-                    </Box>
-
-                    {/* Discounted Price */}
-                    {promotion.actualDiscountedPrice && (
-                        <Box>
-                            <Typography variant="subtitle2" sx={{ fontWeight: 600, color: "#666", mb: 0.5 }}>
-                                Discounted Price (After Voucher)
-                            </Typography>
-                            <Typography variant="h5" sx={{ fontWeight: 700, color: "#30410D" }}>
-                                ₱{Number(promotion.actualDiscountedPrice).toLocaleString()}
-                                <Typography component="span" sx={{ fontSize: "0.9rem", fontWeight: 400, color: "#666", ml: 1 }}>
-                                    {type === "accommodation" ? "/ per night" : "/ per person"}
-                                </Typography>
-                            </Typography>
+                <Box sx={{ display: "flex", flexDirection: "column" }}>
+                    {/* Voucher Code and Discount */}
+                    <Box sx={{ display: "flex", alignItems: "flex-start", gap: 2, mb: 2, mt: 5 }}>
+                        <Box
+                            sx={{
+                                color: "#E68600",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                flexShrink: 0,
+                            }}
+                        >
+                            <LocalOfferIcon sx={{ fontSize: "2.5rem" }} />
                         </Box>
-                    )}
-
-                    {/* Promo Period */}
-                    {promotion.startDate && promotion.endDate && (
-                        <Box>
-                            <Typography variant="subtitle2" sx={{ fontWeight: 600, color: "#666", mb: 0.5 }}>
-                                Promo Period
+                        <Box sx={{ flex: 1 }}>
+                            <Typography variant="body1" sx={{ fontWeight: 700, color: "#000", lineHeight: 1.3 }}>
+                                {promotion.promoCode} - {promotion.percentageDiscount}% off discount
                             </Typography>
-                            <Typography variant="body1">
-                                {new Date(promotion.startDate).toLocaleDateString('en-US', { 
+                            <Typography variant="body2" sx={{ color: "#666", mt: 0.5, fontSize: "0.875rem" }}>
+                                Valid from {new Date(promotion.startDate).toLocaleDateString('en-GB', { 
+                                    day: '2-digit',
                                     month: 'short', 
-                                    day: 'numeric', 
                                     year: 'numeric' 
-                                })} - {new Date(promotion.endDate).toLocaleDateString('en-US', { 
+                                })} - {new Date(promotion.endDate).toLocaleDateString('en-GB', { 
+                                    day: '2-digit',
                                     month: 'short', 
-                                    day: 'numeric', 
                                     year: 'numeric' 
                                 })}
                             </Typography>
                         </Box>
-                    )}
+                    </Box>
 
-                    {/* Savings */}
+                    {/* Savings Badge */}
                     {promotion.actualDiscountedPrice && (
-                        <Box sx={{ 
-                            bgcolor: "#f0f7f0", 
-                            p: 2, 
-                            borderRadius: 2, 
-                            border: "1px solid #70873F" 
-                        }}>
-                            <Typography variant="subtitle2" sx={{ fontWeight: 600, color: "#30410D", mb: 0.5 }}>
-                                You Save
-                            </Typography>
-                            <Typography variant="h6" sx={{ fontWeight: 700, color: "#30410D" }}>
-                                ₱{(price - promotion.actualDiscountedPrice).toLocaleString()}
-                            </Typography>
+                        <Box sx={{ mb: 2.5, display: "flex", gap: 0.5, flexWrap: "wrap" }}>
+                            <Chip
+                                label={`Save ₱${(price - promotion.actualDiscountedPrice).toFixed(0)}`}
+                                sx={{
+                                    bgcolor: "#FFE4CC",
+                                    color: "#E68600",
+                                    fontWeight: 700,
+                                    fontSize: "0.85rem",
+                                    height: "28px",
+                                    borderRadius: "8px",
+                                    px: 1,
+                                }}
+                            />
+                            {promotion.minSpendRequired && (
+                                <Chip
+                                    label={`Min. spend ₱${Number(promotion.minSpendRequired).toLocaleString()}`}
+                                    sx={{
+                                        bgcolor: "#FFF4E6",
+                                        color: "#E68600",
+                                        fontWeight: 600,
+                                        fontSize: "0.85rem",
+                                        height: "28px",
+                                        borderRadius: "8px",
+                                        px: 1,
+                                    }}
+                                />
+                            )}
+                            {promotion.maxUsers && (
+                                <Chip
+                                    label={`${promotion.maxUsers} left`}
+                                    sx={{
+                                        bgcolor: "#E8F5E9",
+                                        color: "#2E7D32",
+                                        fontWeight: 600,
+                                        fontSize: "0.85rem",
+                                        height: "28px",
+                                        borderRadius: "8px",
+                                        px: 1,
+                                    }}
+                                />
+                            )}
                         </Box>
                     )}
+
+                    <Box sx={{ borderTop: "1px solid #E0E0E0", pt: 2.5 }}>
+                        {/* Terms and Conditions */}
+                        <Typography variant="body2" sx={{ fontWeight: 700, color: "#000", mb: 1.5 }}>
+                            Terms and Conditions
+                        </Typography>
+                        {promotion.termsAndConditions && promotion.termsAndConditions.length > 0 ? (
+                            <Box component="ul" sx={{ m: 0, pl: 2.5, "& li": { mb: 0.8, color: "#666", fontSize: "0.875rem" } }}>
+                                {promotion.termsAndConditions.map((term, index) => (
+                                    <li key={index}>
+                                        <Typography variant="body2" component="span" sx={{ fontSize: "0.875rem" }}>
+                                            {term}
+                                        </Typography>
+                                    </li>
+                                ))}
+                            </Box>
+                        ) : (
+                            <Typography variant="body2" sx={{ color: "#999", fontStyle: "italic", fontSize: "0.875rem" }}>
+                                No terms and conditions specified
+                            </Typography>
+                        )}
+                    </Box>
                 </Box>
             )}
         </DialogContent>
-        <DialogActions sx={{ p: 2 }}>
-            <Button 
-                onClick={() => setPromoDetailsOpen(false)}
-                variant="contained"
-                sx={{
-                    bgcolor: "#30410D",
-                    color: "#fff",
-                    textTransform: "none",
-                    "&:hover": { bgcolor: "#70873F" }
-                }}
-            >
-                Close
-            </Button>
-        </DialogActions>
     </Dialog>
   </> );
 }

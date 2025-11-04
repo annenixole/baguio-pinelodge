@@ -1,5 +1,5 @@
 import React from "react";
-import { Box, Typography, Card, CardContent, useMediaQuery, Button, Dialog, DialogTitle, DialogContent, IconButton, RadioGroup, FormControlLabel, Radio, Divider, Chip, } from "@mui/material";
+import { Box, Typography, Card, CardContent, useMediaQuery, Button, Dialog, DialogTitle, DialogContent, IconButton, RadioGroup, FormControlLabel, Radio, Divider, Chip, Tabs, Tab, } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import CloseIcon from "@mui/icons-material/Close";
 import AddIcon from "@mui/icons-material/Add";
@@ -15,7 +15,7 @@ import axios from "axios";
 import ListingGrid from "./ListingGrid";
 
 
-export default function ListingHost({ setSelectedIndex }) {
+export default function ListingHost({ setSelectedIndex, onProfileSettingsClick }) {
   const [reloadTrigger, setReloadTrigger] = React.useState(0);
   const [userEmail, setUserEmail] = React.useState("");
   const [open, setOpen] = React.useState(false);
@@ -600,14 +600,14 @@ export default function ListingHost({ setSelectedIndex }) {
         <Typography variant="h4" sx={{ fontWeight: 600, color: '#30410D', mb: -2 }}>
           Listings
         </Typography>
-        {userEmail && <ProfileMenu userEmail={isMobile ? null : userEmail} />}
+        {userEmail && <ProfileMenu userEmail={isMobile ? null : userEmail} onProfileSettingsClick={onProfileSettingsClick} />}
       </Box>
 
       <Typography color="text.secondary" sx={{ mb: 5 }}>
         Manage your property listings here
       </Typography>
 
-      {/* Filter + Add Listing Toolbar */}
+      {/* Category Tabs + Add Listing Button */}
       <Box
         sx={{
           display: "flex",
@@ -618,32 +618,34 @@ export default function ListingHost({ setSelectedIndex }) {
           gap: 2,
         }}
       >
-        {/* Filter Buttons */}
-        <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
-          {["all", "accommodation", "service", "experience"].map((category) => (
-            <Button
-              key={category}
-              variant={filter === category ? "contained" : "outlined"}
-              onClick={() => setFilter(category)}
-              sx={{
-                textTransform: "capitalize",
-                borderRadius: 2,
+        {/* Category Tabs */}
+        <Box sx={{ borderBottom: 1, borderColor: "divider", bgcolor: "white", borderRadius: 2, flexGrow: 1 }}>
+          <Tabs
+            value={filter}
+            onChange={(e, newValue) => setFilter(newValue)}
+            sx={{
+              "& .MuiTab-root": {
+                textTransform: "none",
+                fontSize: "1rem",
+                fontWeight: 500,
+                minWidth: 100,
+                color: "#666",
+              },
+              "& .Mui-selected": {
+                color: "#30410D !important",
                 fontWeight: 600,
-                color: filter === category ? "#fff" : "#30410D",
-                backgroundColor:
-                  filter === category ? "#30410D" : "transparent",
-                borderColor: "#30410D",
-                "&:hover": {
-                  backgroundColor:
-                    filter === category ? "#30410D" : "rgba(112,135,63,0.1)",
-                },
-              }}
-            >
-              {category === "all"
-                ? "All"
-                : category.charAt(0).toUpperCase() + category.slice(1) + (category !== "service" ? "s" : "")}
-            </Button>
-          ))}
+              },
+              "& .MuiTabs-indicator": {
+                backgroundColor: "#30410D",
+                height: 3,
+              },
+            }}
+          >
+            <Tab label="All" value="all" />
+            <Tab label="Accommodations" value="accommodation" />
+            <Tab label="Service" value="service" />
+            <Tab label="Experiences" value="experience" />
+          </Tabs>
         </Box>
 
         {/* Add Listing Button */}

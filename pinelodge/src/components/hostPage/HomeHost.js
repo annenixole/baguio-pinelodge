@@ -4,6 +4,8 @@ import SidebarHost from "./SidebarHost";
 import ListingHost from './ListingHost';
 import PaymentHost from './PaymentHost';
 import DashboardHost from './DashboardHost';
+import ProfileSettings from './ProfileSettings';
+import ManageBookings from './ManageBookings';
 
 export default function HomeHost() {
   const [selectedIndex, setSelectedIndex] = React.useState(() => {
@@ -18,11 +20,15 @@ React.useEffect(() => {
   const renderContent = () => {
     switch (selectedIndex) {
       case 0:
-        return <DashboardHost />;
+        return <DashboardHost onProfileSettingsClick={() => setSelectedIndex(4)} />;
       case 1:
-           return <ListingHost />;
+           return <ListingHost onProfileSettingsClick={() => setSelectedIndex(4)} />;
       case 2:
-        return <PaymentHost />;  
+        return <ManageBookings onProfileSettingsClick={() => setSelectedIndex(4)} />;
+      case 3:
+        return <PaymentHost onProfileSettingsClick={() => setSelectedIndex(4)} />;  
+      case 4:
+        return <ProfileSettings />;
       default:
         return null;
     }

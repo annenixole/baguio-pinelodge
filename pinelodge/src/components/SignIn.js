@@ -29,6 +29,23 @@ export default function SignIn() {
     const handleSignin = async (e) => {
         e.preventDefault();
         setMsg("");
+
+        // Check if admin credentials
+        const ADMIN_EMAIL = "pinelodgeadmin2025@gmail.com";
+        const ADMIN_PASSWORD = "Pinelodgeadmin2025";
+
+        if (email === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
+            // Admin login - no Firebase authentication needed
+            localStorage.setItem("userRole", "admin");
+            localStorage.setItem("isAdmin", "true");
+            alert("Admin signed in successfully!");
+            setTimeout(() => {
+                navigate("/adminPage");
+            }, 1000);
+            return;
+        }
+
+        // Regular user authentication
         try {
             const userCredential = await signInWithEmailAndPassword(auth, email, password);
             const user = userCredential.user;

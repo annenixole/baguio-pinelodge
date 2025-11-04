@@ -1,17 +1,11 @@
 import React, { useState } from "react";
 import { Avatar, Menu, MenuItem, Typography, Box } from "@mui/material";
 import ArrowDropDownIcon from "@mui/icons-material/ArrowDropDown";
-import { signOut } from "firebase/auth";
-import { auth } from "../firebase";
-import { useNavigate } from "react-router-dom";
-import Swal from "sweetalert2";
 
-export default function ProfileMenu({ userEmail }) {
+export default function ProfileMenu({ userEmail, onProfileSettingsClick }) {
   const [anchorEl, setAnchorEl] = useState(null);
   const open = Boolean(anchorEl);
   const hostAcc = "Host Account";
-  const navigate = useNavigate();
-
 
   const handleClick = (event) => {
     setAnchorEl(event.currentTarget);
@@ -21,61 +15,16 @@ export default function ProfileMenu({ userEmail }) {
     setAnchorEl(null);
   };
 
-  const handleLogout = async () => {
-  const result = await Swal.fire({
-    title: "Are you sure?",
-    text: "You’ll be logged out of your host account.",
-    icon: "warning",
-    showCancelButton: true,
-    confirmButtonText: "Yes, log out",
-    cancelButtonText: "Cancel",
-    reverseButtons: true,
-    buttonsStyling: false,
-
-    didOpen: () => {
-      const popup = Swal.getPopup();
-      const icon = popup.querySelector(".swal2-icon");
-      const confirmBtn = Swal.getConfirmButton();
-      const cancelBtn = Swal.getCancelButton();
-   
-      Object.assign(popup.style, {
-        borderRadius: "29px",
-        padding: "8px",
-      });
-  
-      Object.assign(confirmBtn.style, {
-        backgroundColor: "#30410D",
-        color: "white",
-        borderRadius: "6px",
-        padding: "8px 16px",
-        border: "none",
-        fontWeight: "500",
-        margin: "12px 8px",
-        cursor: "pointer",
-      });
-     
-      Object.assign(cancelBtn.style, {
-        backgroundColor: "#d33",
-        color: "white",
-        borderRadius: "6px",
-        padding: "8px 16px",
-        border: "none",
-        fontWeight: "500",
-        margin: "12px 8px",
-        cursor: "pointer",
-      });
-    },
-  });
-  if (!result.isConfirmed) return;
-
-  try {
-    await signOut(auth);
-    navigate("/");
-  } catch (error) {
-    console.error("Logout failed:", error);
-  }
-};
-
+  const handleProfileSettings = () => {
+    console.log('👤 Profile Settings clicked');
+    handleClose();
+    if (onProfileSettingsClick) {
+      console.log('✅ Calling onProfileSettingsClick callback');
+      onProfileSettingsClick();
+    } else {
+      console.warn('⚠️ onProfileSettingsClick callback not provided');
+    }
+  };
 
   return (
     <>
@@ -144,9 +93,8 @@ export default function ProfileMenu({ userEmail }) {
             </Typography>
           </MenuItem>
         )}
-        <MenuItem onClick={handleClose}>Profile Settings</MenuItem>
+        <MenuItem onClick={handleProfileSettings}>Profile Settings</MenuItem>
         <MenuItem onClick={handleClose}>Account Settings</MenuItem>
-        <MenuItem onClick={handleLogout}>Logout</MenuItem>
       </Menu>
     </>
   );

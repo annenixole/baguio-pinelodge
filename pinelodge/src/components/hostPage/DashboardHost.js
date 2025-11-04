@@ -4,7 +4,7 @@ import { useTheme } from "@mui/material/styles";
 import ProfileMenu from './ProfileMenu';
 import { auth } from '../firebase';
 
-export default function DashboardHost() {
+export default function DashboardHost({ onProfileSettingsClick }) {
 
   const [userEmail, setUserEmail] = React.useState('');
   const theme = useTheme();
@@ -40,6 +40,7 @@ export default function DashboardHost() {
         {userEmail && (
           <ProfileMenu
             userEmail={isMobile ? null : userEmail} // hide email on mobile
+            onProfileSettingsClick={onProfileSettingsClick}
           />
         )}
       </Box>

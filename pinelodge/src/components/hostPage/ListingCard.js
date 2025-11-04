@@ -8,6 +8,7 @@ import LocalActivityIcon from "@mui/icons-material/LocalActivity";
 import StarIcon from "@mui/icons-material/Star";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import LocalOfferIcon from "@mui/icons-material/LocalOffer";
+import CloseIcon from "@mui/icons-material/Close";
 import ManageOfferModal from "./ManageOfferModal";
 
 export default function ListingCard({ listing, onEdit, onDelete, onView, onPublish }) {
@@ -280,16 +281,13 @@ export default function ListingCard({ listing, onEdit, onDelete, onView, onPubli
                 color: isDraft ? "#666" : "#333",
               }}
             >
-              <Box component="span" sx={{ textDecoration: listing.promotion ? "line-through" : "none" }}>
-                ₱{price?.toLocaleString() || "0"}
-              </Box>{" "}
+              ₱{price?.toLocaleString() || "0"}{" "}
               <Typography
                 component="span"
                 sx={{
                   fontWeight: 400,
                   fontSize: "0.85rem",
                   color: "text.secondary",
-                  textDecoration: "none",
                 }}
               >
                 {type === "accommodation"
@@ -330,103 +328,134 @@ export default function ListingCard({ listing, onEdit, onDelete, onView, onPubli
         maxWidth="sm"
         fullWidth
       >
-        <DialogTitle sx={{ bgcolor: "#DE7001", color: "#fff", fontWeight: 700 }}>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-            <LocalOfferIcon />
-            Promotion Details
-          </Box>
+        <DialogTitle 
+          sx={{ 
+            bgcolor: "#E68600", 
+            color: "#fff", 
+            fontWeight: 700,
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            py: 2,
+          }}
+        >
+          Promo Details
+          <IconButton
+            onClick={() => setPromoDetailsOpen(false)}
+            sx={{ 
+              color: "#fff",
+              "&:hover": { bgcolor: "rgba(255,255,255,0.1)" }
+            }}
+          >
+            <CloseIcon />
+          </IconButton>
         </DialogTitle>
-        <DialogContent sx={{ mt: 2 }}>
+        <DialogContent sx={{ p: 5 }}>
           {listing.promotion && (
-            <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-              {/* Discount Percentage */}
-              <Box>
-                <Typography variant="subtitle2" sx={{ fontWeight: 600, color: "#666", mb: 0.5 }}>
-                  Discount
-                </Typography>
-                <Typography variant="h5" sx={{ fontWeight: 700, color: "#DE7001" }}>
-                  {listing.promotion.percentageDiscount}% OFF
-                </Typography>
-              </Box>
-
-              {/* Original Price */}
-              <Box>
-                <Typography variant="subtitle2" sx={{ fontWeight: 600, color: "#666", mb: 0.5 }}>
-                  Original Price
-                </Typography>
-                <Typography variant="h6" sx={{ fontWeight: 600, textDecoration: "line-through", color: "#999" }}>
-                  ₱{price?.toLocaleString() || "0"}
-                </Typography>
-              </Box>
-
-              {/* Discounted Price */}
-              {listing.promotion.actualDiscountedPrice && (
-                <Box>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 600, color: "#666", mb: 0.5 }}>
-                    Discounted Price (After Voucher)
-                  </Typography>
-                  <Typography variant="h5" sx={{ fontWeight: 700, color: "#30410D" }}>
-                    ₱{Number(listing.promotion.actualDiscountedPrice).toLocaleString()}
-                    <Typography component="span" sx={{ fontSize: "0.9rem", fontWeight: 400, color: "#666", ml: 1 }}>
-                      {type === "accommodation" ? "/ per night" : "/ per person"}
-                    </Typography>
-                  </Typography>
+            <Box sx={{ display: "flex", flexDirection: "column" }}>
+              {/* Voucher Code and Discount */}
+              <Box sx={{ display: "flex", alignItems: "flex-start", gap: 2, mb: 2, mt: 5 }}>
+                <Box
+                  sx={{
+                    color: "#E68600",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                    width: 30,
+                    height: 30,
+                  }}
+                >
+                  <LocalOfferIcon sx={{ fontSize: "2.5rem" }} />
                 </Box>
-              )}
-
-              {/* Promo Period */}
-              {listing.promotion.startDate && listing.promotion.endDate && (
-                <Box>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 600, color: "#666", mb: 0.5 }}>
-                    Promo Period
+                <Box sx={{ flex: 1 }}>
+                  <Typography variant="body1" sx={{ fontWeight: 700, color: "#000", lineHeight: 1.3 }}>
+                    {listing.promotion.promoCode} - {listing.promotion.percentageDiscount}% off discount
                   </Typography>
-                  <Typography variant="body1">
-                    {new Date(listing.promotion.startDate).toLocaleDateString('en-US', { 
+                  <Typography variant="body2" sx={{ color: "#666", mt: 0.5, fontSize: "0.875rem" }}>
+                    Valid from {new Date(listing.promotion.startDate).toLocaleDateString('en-GB', { 
+                      day: '2-digit',
                       month: 'short', 
-                      day: 'numeric', 
                       year: 'numeric' 
-                    })} - {new Date(listing.promotion.endDate).toLocaleDateString('en-US', { 
+                    })} - {new Date(listing.promotion.endDate).toLocaleDateString('en-GB', { 
+                      day: '2-digit',
                       month: 'short', 
-                      day: 'numeric', 
                       year: 'numeric' 
                     })}
                   </Typography>
                 </Box>
-              )}
+              </Box>
 
-              {/* Savings */}
+              {/* Savings Badge */}
               {listing.promotion.actualDiscountedPrice && (
-                <Box sx={{ 
-                  bgcolor: "#f0f7f0", 
-                  p: 2, 
-                  borderRadius: 2, 
-                  border: "1px solid #70873F" 
-                }}>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 600, color: "#30410D", mb: 0.5 }}>
-                    You Save
-                  </Typography>
-                  <Typography variant="h6" sx={{ fontWeight: 700, color: "#30410D" }}>
-                    ₱{(price - listing.promotion.actualDiscountedPrice).toLocaleString()}
-                  </Typography>
+                <Box sx={{ mb: 2.5, display: "flex", gap: 1, flexWrap: "wrap" }}>
+                  <Chip
+                    label={`Save ₱${(price - listing.promotion.actualDiscountedPrice).toFixed(0)}`}
+                    sx={{
+                      bgcolor: "#FFE4CC",
+                      color: "#E68600",
+                      fontWeight: 700,
+                      fontSize: "0.85rem",
+                      height: "28px",
+                      borderRadius: "14px",
+                      px: 1,
+                    }}
+                  />
+                  {listing.promotion.minSpendRequired && (
+                    <Chip
+                      label={`Min. spend ₱${Number(listing.promotion.minSpendRequired).toLocaleString()}`}
+                      sx={{
+                        bgcolor: "#FFF4E6",
+                        color: "#E68600",
+                        fontWeight: 600,
+                        fontSize: "0.85rem",
+                        height: "28px",
+                        borderRadius: "14px",
+                        px: 1,
+                      }}
+                    />
+                  )}
+                  {listing.promotion.maxUsers && (
+                    <Chip
+                      label={`${listing.promotion.maxUsers} left`}
+                      sx={{
+                        bgcolor: "#E8F5E9",
+                        color: "#2E7D32",
+                        fontWeight: 600,
+                        fontSize: "0.85rem",
+                        height: "28px",
+                        borderRadius: "14px",
+                        px: 1,
+                      }}
+                    />
+                  )}
                 </Box>
               )}
+
+              <Box sx={{ borderTop: "1px solid #E0E0E0", pt: 2.5 }}>
+                {/* Terms and Conditions */}
+                <Typography variant="body2" sx={{ fontWeight: 700, color: "#000", mb: 1.5 }}>
+                  Terms and Conditions
+                </Typography>
+                {listing.promotion.termsAndConditions && listing.promotion.termsAndConditions.length > 0 ? (
+                  <Box component="ul" sx={{ m: 0, pl: 2.5, "& li": { mb: 0.8, color: "#666", fontSize: "0.875rem" } }}>
+                    {listing.promotion.termsAndConditions.map((term, index) => (
+                      <li key={index}>
+                        <Typography variant="body2" component="span" sx={{ fontSize: "0.875rem" }}>
+                          {term}
+                        </Typography>
+                      </li>
+                    ))}
+                  </Box>
+                ) : (
+                  <Typography variant="body2" sx={{ color: "#999", fontStyle: "italic", fontSize: "0.875rem" }}>
+                    No terms and conditions specified
+                  </Typography>
+                )}
+              </Box>
             </Box>
           )}
         </DialogContent>
-        <DialogActions sx={{ p: 2 }}>
-          <Button 
-            onClick={() => setPromoDetailsOpen(false)}
-            variant="contained"
-            sx={{
-              bgcolor: "#30410D",
-              color: "#fff",
-              textTransform: "none",
-              "&:hover": { bgcolor: "#70873F" }
-            }}
-          >
-            Close
-          </Button>
-        </DialogActions>
       </Dialog>
     </Card>
   );

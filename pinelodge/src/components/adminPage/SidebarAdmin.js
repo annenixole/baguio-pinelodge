@@ -1,6 +1,28 @@
 import React from "react";
-import {Drawer,List,ListItemButton,ListItemIcon,ListItemText,Toolbar,Box,IconButton,Divider,useMediaQuery,Typography,Button} from "@mui/material";
-import { Dashboard, Home, Menu, Payments, Settings, Logout, ListAlt } from "@mui/icons-material";
+import {
+  Drawer,
+  List,
+  ListItemButton,
+  ListItemIcon,
+  ListItemText,
+  Toolbar,
+  Box,
+  IconButton,
+  Divider,
+  useMediaQuery,
+  Typography,
+  Button
+} from "@mui/material";
+import {
+  Dashboard,
+  People,
+  Menu,
+  Business,
+  Assessment,
+  Settings,
+  Logout,
+  VerifiedUser
+} from "@mui/icons-material";
 import { useTheme } from "@mui/material/styles";
 import logo from '../../elements/BaguioPinelodgelogo.png';
 import logoCursor from '../../elements/logoCursor.png';
@@ -11,24 +33,25 @@ import Swal from "sweetalert2";
 
 const drawerWidth = 240;
 
-export default function SidebarHost({ selectedIndex, onSelect }) {
+export default function SidebarAdmin({ selectedIndex, onSelect }) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const [open, setOpen] = React.useState(!isMobile);
   const navigate = useNavigate();
 
-  //Navigation items
+  // Navigation items for admin
   const navItems = [
     { text: "Dashboard", icon: <Dashboard /> },
-    { text: "Listings", icon: <Home /> },
-    { text: "Bookings", icon: <ListAlt /> },
-    { text: "Payments", icon: <Payments /> },
+    { text: "Users", icon: <People /> },
+    { text: "Listings", icon: <Business /> },
+    { text: "Verifications", icon: <VerifiedUser /> },
+    { text: "Reports", icon: <Assessment /> },
   ];
 
   const handleLogout = async () => {
     const result = await Swal.fire({
       title: "Are you sure?",
-      text: "You'll be logged out of your host account.",
+      text: "You'll be logged out of your admin account.",
       icon: "warning",
       showCancelButton: true,
       confirmButtonText: "Yes, log out",
@@ -41,12 +64,12 @@ export default function SidebarHost({ selectedIndex, onSelect }) {
         const icon = popup.querySelector(".swal2-icon");
         const confirmBtn = Swal.getConfirmButton();
         const cancelBtn = Swal.getCancelButton();
-     
+
         Object.assign(popup.style, {
           borderRadius: "29px",
           padding: "8px",
         });
-    
+
         Object.assign(confirmBtn.style, {
           backgroundColor: "#30410D",
           color: "white",
@@ -57,7 +80,7 @@ export default function SidebarHost({ selectedIndex, onSelect }) {
           margin: "12px 8px",
           cursor: "pointer",
         });
-       
+
         Object.assign(cancelBtn.style, {
           backgroundColor: "#d33",
           color: "white",
@@ -85,7 +108,7 @@ export default function SidebarHost({ selectedIndex, onSelect }) {
       <Toolbar sx={{ display: "flex", alignItems: "center", p: 2 }}>
         {/* Left Logo */}
         <Box display="flex" alignItems="center" gap={1}>
-          <Link to=" " style={{ textDecoration: "none" }}>
+          <Link to="/admin" style={{ textDecoration: "none" }}>
             <img
               src={logo}
               alt="Baguio PineLodge Logo"
@@ -93,28 +116,33 @@ export default function SidebarHost({ selectedIndex, onSelect }) {
             />
           </Link>
           <Box>
-            <Typography variant="h6"
+            <Typography
+              variant="h6"
               sx={{
                 fontWeight: 'lighter',
                 fontSize: 28,
                 mb: -1,
-                color: '#30410D;',
+                color: '#30410D',
                 fontFamily: "'Kingred Serif', serif",
                 cursor: `url(${logoCursor}) 0 0, pointer`
-              }}>
+              }}
+            >
               BAGUIO
             </Typography>
 
-            <Typography variant="caption"
+            <Typography
+              variant="caption"
               sx={{
                 letterSpacing: 3,
                 fontSize: 13,
-                color: '#30410D;',
+                color: '#30410D',
                 fontFamily: "'Questrial', sans-serif",
                 cursor: `url(${logoCursor}) 0 0, pointer`
-              }}>
+              }}
+            >
               PINELODGE
             </Typography>
+
           </Box>
         </Box>
       </Toolbar>

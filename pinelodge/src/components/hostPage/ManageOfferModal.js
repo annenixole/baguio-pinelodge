@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Dialog,
   DialogTitle,
@@ -8,8 +8,17 @@ import {
   Box,
   TextField,
   Button,
+  Chip,
+  Popover,
+  InputAdornment,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
+import RefreshIcon from "@mui/icons-material/Refresh";
+import AddIcon from "@mui/icons-material/Add";
+import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
+import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
+import Calendar from "react-calendar";
+import "react-calendar/dist/Calendar.css";
 import { doc, updateDoc, getDoc } from "firebase/firestore";
 import { db, auth } from "../firebase";
 
@@ -26,10 +35,19 @@ export default function ManageOfferModal({
     promoCode: "",
     percentageDiscount: "",
     actualDiscountedPrice: "",
-    maxUses: "",
-    expiryDate: "",
-    description: "",
+    startDate: "",
+    endDate: "",
+    minSpendRequired: "",
+    maxUsers: "",
+    termsAndConditions: [],
   });
+  const [newTerm, setNewTerm] = useState("");
+  
+  // Date picker states
+  const [dateRange, setDateRange] = useState([null, null]);
+  const [dateAnchorEl, setDateAnchorEl] = useState(null);
+  const dateButtonRef = useRef(null);
+  const [displayDates, setDisplayDates] = useState("");
 
   // Calculate discounted price dynamically
   const calculateDiscount = (discountPercent) => {
@@ -40,30 +58,34 @@ export default function ManageOfferModal({
   };
 
   useEffect(() => {
-  const fetchPromotion = async () => {
-    try {
-      const user = auth.currentUser;
-      if (!user || !listingId) return;
+    const fetchPromotion = async () => {
+      try {
+        const user = auth.currentUser;
+        if (!user || !listingId) return;
 
-      const docRef = doc(db, "users", user.email, `${listingType}s`, listingId);
-      const docSnap = await getDoc(docRef);
+        const docRef = doc(db, "users", user.email, `${listingType}s`, listingId);
+        const docSnap = await getDoc(docRef);
 
-      if (docSnap.exists() && docSnap.data().promotion) {
-        setFormData({
-          ...docSnap.data().promotion,
-          actualDiscountedPrice:
-            docSnap.data().promotion.actualDiscountedPrice ||
-            calculateDiscount(docSnap.data().promotion.percentageDiscount),
-        });
+        if (docSnap.exists() && docSnap.data().promotion) {
+          const promo = docSnap.data().promotion;
+          setFormData({
+            promoCode: promo.promoCode || "",
+            percentageDiscount: promo.percentageDiscount || "",
+            actualDiscountedPrice: promo.actualDiscountedPrice || calculateDiscount(promo.percentageDiscount),
+            startDate: promo.startDate || "",
+            endDate: promo.endDate || "",
+            minSpendRequired: promo.minSpendRequired || "",
+            maxUsers: promo.maxUsers || "",
+            termsAndConditions: promo.termsAndConditions || [],
+          });
+        }
+      } catch (error) {
+        console.error("Error fetching promotion:", error);
       }
-    } catch (error) {
-      console.error("Error fetching promotion:", error);
-    }
-  };
+    };
 
-  if (open) fetchPromotion();
-}, [open, listingId, listingType]);
-
+    if (open) fetchPromotion();
+  }, [open, listingId, listingType]);
 
   // Populate form when editing
   useEffect(() => {
@@ -71,22 +93,47 @@ export default function ManageOfferModal({
       setFormData({
         promoCode: activePromotion.promoCode || "",
         percentageDiscount: activePromotion.percentageDiscount || "",
-        maxUses: activePromotion.maxUses || "",
-        expiryDate: activePromotion.expiryDate || "",
-        description: activePromotion.description || "",
-        actualDiscountedPrice:
-          activePromotion.actualDiscountedPrice ||
-          calculateDiscount(activePromotion.percentageDiscount),
+        actualDiscountedPrice: activePromotion.actualDiscountedPrice || calculateDiscount(activePromotion.percentageDiscount),
+        startDate: activePromotion.startDate || "",
+        endDate: activePromotion.endDate || "",
+        minSpendRequired: activePromotion.minSpendRequired || "",
+        maxUsers: activePromotion.maxUsers || "",
+        termsAndConditions: activePromotion.termsAndConditions || [],
       });
+      
+      // Set date range for calendar
+      if (activePromotion.startDate && activePromotion.endDate) {
+        const startDate = new Date(activePromotion.startDate);
+        const endDate = new Date(activePromotion.endDate);
+        setDateRange([startDate, endDate]);
+        
+        // Format display dates
+        const formatDate = (date) => {
+          const month = date.toLocaleString('default', { month: 'short' });
+          const day = date.getDate();
+          const year = date.getFullYear();
+          return `${month} ${day}, ${year}`;
+        };
+        
+        if (startDate.toDateString() === endDate.toDateString()) {
+          setDisplayDates(formatDate(startDate));
+        } else {
+          setDisplayDates(`${formatDate(startDate)} - ${formatDate(endDate)}`);
+        }
+      }
     } else {
       setFormData({
         promoCode: "",
         percentageDiscount: "",
         actualDiscountedPrice: "",
-        maxUses: "",
-        expiryDate: "",
-        description: "",
+        startDate: "",
+        endDate: "",
+        minSpendRequired: "",
+        maxUsers: "",
+        termsAndConditions: [],
       });
+      setDateRange([null, null]);
+      setDisplayDates("");
     }
   }, [activePromotion, open]);
 
@@ -104,9 +151,86 @@ export default function ManageOfferModal({
 
   // Generate random promo code
   const handleGenerateCode = () => {
-    const newCode =
-      "PROMO" + Math.random().toString(36).substring(2, 7).toUpperCase();
+    const newCode = "PROMO" + Math.random().toString(36).substring(2, 7).toUpperCase();
     setFormData({ ...formData, promoCode: newCode });
+  };
+
+  // Add term to the list
+  const handleAddTerm = () => {
+    if (newTerm.trim()) {
+      setFormData({
+        ...formData,
+        termsAndConditions: [...formData.termsAndConditions, newTerm.trim()],
+      });
+      setNewTerm("");
+    }
+  };
+
+  // Remove term from the list
+  const handleRemoveTerm = (indexToRemove) => {
+    setFormData({
+      ...formData,
+      termsAndConditions: formData.termsAndConditions.filter((_, index) => index !== indexToRemove),
+    });
+  };
+
+  // Handle date picker
+  const handleDateClick = () => {
+    setDateAnchorEl(dateButtonRef.current);
+  };
+
+  const handleDateClose = () => {
+    setDateAnchorEl(null);
+  };
+
+  const handleDateChange = (value) => {
+    setDateRange(value);
+    
+    const formatDate = (date) => {
+      const month = date.toLocaleString('default', { month: 'short' });
+      const day = date.getDate();
+      const year = date.getFullYear();
+      return `${month} ${day}, ${year}`;
+    };
+
+    const formatISODate = (date) => {
+      return date.toISOString().split('T')[0];
+    };
+
+    if (Array.isArray(value)) {
+      const [start, end] = value;
+      if (start && end) {
+        setFormData({
+          ...formData,
+          startDate: formatISODate(start),
+          endDate: formatISODate(end),
+        });
+        if (start.toDateString() === end.toDateString()) {
+          setDisplayDates(formatDate(start));
+        } else {
+          setDisplayDates(`${formatDate(start)} - ${formatDate(end)}`);
+        }
+      } else if (start) {
+        setFormData({
+          ...formData,
+          startDate: formatISODate(start),
+          endDate: "",
+        });
+        setDisplayDates(formatDate(start));
+      }
+    }
+    handleDateClose();
+  };
+
+  const handleClearDates = () => {
+    setDateRange([null, null]);
+    setDisplayDates("");
+    setFormData({
+      ...formData,
+      startDate: "",
+      endDate: "",
+    });
+    handleDateClose();
   };
 
   // ✅ Save promotion to Firestore
@@ -118,8 +242,25 @@ export default function ManageOfferModal({
         return;
       }
 
-      const expiry = new Date(formData.expiryDate);
-      const endDate = listingAvailability?.end
+      if (!formData.percentageDiscount || formData.percentageDiscount <= 0) {
+        alert("Please enter a valid percentage discount.");
+        return;
+      }
+
+      if (!formData.startDate || !formData.endDate) {
+        alert("Please select a promo validity range.");
+        return;
+      }
+
+      const startDate = new Date(formData.startDate);
+      const endDate = new Date(formData.endDate);
+
+      if (endDate <= startDate) {
+        alert("End date must be after start date.");
+        return;
+      }
+
+      const availabilityEnd = listingAvailability?.end
         ? new Date(
             listingAvailability.end.seconds
               ? listingAvailability.end.seconds * 1000
@@ -127,8 +268,8 @@ export default function ManageOfferModal({
           )
         : null;
 
-      if (endDate && expiry > endDate) {
-        alert("Expiry date cannot exceed your listing’s availability end date!");
+      if (availabilityEnd && endDate > availabilityEnd) {
+        alert("Promo end date cannot exceed your listing's availability end date!");
         return;
       }
 
@@ -136,9 +277,11 @@ export default function ManageOfferModal({
         promoCode: formData.promoCode,
         percentageDiscount: formData.percentageDiscount,
         actualDiscountedPrice: calculateDiscount(formData.percentageDiscount),
-        maxUses: formData.maxUses,
-        expiryDate: formData.expiryDate,
-        description: formData.description,
+        startDate: formData.startDate,
+        endDate: formData.endDate,
+        minSpendRequired: formData.minSpendRequired || null,
+        maxUsers: formData.maxUsers || null,
+        termsAndConditions: formData.termsAndConditions,
         createdAt: new Date(),
       };
 
@@ -181,9 +324,8 @@ export default function ManageOfferModal({
 
   const isEditing = Boolean(activePromotion);
 
-
-  // Limit expiry date based on listing availability
-  const maxExpiryDate =
+  // Limit date range based on listing availability
+  const maxDate =
     listingAvailability?.end &&
     new Date(
       listingAvailability.end.seconds
@@ -200,15 +342,13 @@ export default function ManageOfferModal({
       fullWidth
       maxWidth="sm"
       PaperProps={{
-        sx: { borderRadius: 3, p: 1.5 },
+        sx: { borderRadius: 3 },
       }}
     >
-      <DialogTitle sx={{ fontWeight: 700 }}>
-        {isEditing ? "Manage Promotion" : "Create Promotion"}
-        <Typography variant="body2" sx={{ color: "text.secondary" }}>
-          {isEditing
-            ? "Remove or Edit Promotion for this listing"
-            : "Add Promotion to your listing"}
+      <DialogTitle sx={{ fontWeight: 700, pb: 1 }}>
+        Manage Offers
+        <Typography variant="body2" sx={{ color: "text.secondary", fontWeight: 400 }}>
+          Add Promotion to your listing
         </Typography>
         <IconButton
           onClick={onClose}
@@ -218,154 +358,384 @@ export default function ManageOfferModal({
         </IconButton>
       </DialogTitle>
 
-      <DialogContent dividers>
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+      <DialogContent dividers sx={{ pt: 3, pb: 3 }}>
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
           {/* Promo Code */}
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-            <TextField
-              label="Promotion Code"
-              name="promoCode"
-              value={formData.promoCode}
-              onChange={handleChange}
-              fullWidth
-              placeholder="Enter or generate promo code"
-              variant="outlined"
-            />
-            <Button
-              onClick={handleGenerateCode}
-              variant="outlined"
-              sx={{ textTransform: "none" }}
-            >
-              Generate
-            </Button>
-          </Box>
-
-          {/* Percentage Discount */}
-          <TextField
-            label="% Percentage Discount *"
-            name="percentageDiscount"
-            value={formData.percentageDiscount}
-            onChange={handleChange}
-            type="number"
-            fullWidth
-            variant="outlined"
-          />
-
-          {/* Actual Discounted Price (read-only) */}
-          <TextField
-            label="Actual Discounted Price"
-            name="actualDiscountedPrice"
-            value={
-              formData.actualDiscountedPrice
-                ? `₱${formData.actualDiscountedPrice}`
-                : ""
-            }
-            fullWidth
-            variant="outlined"
-            InputProps={{ readOnly: true }}
-            helperText={
-              listingPrice
-                ? `Base price: ₱${listingPrice.toLocaleString()}`
-                : ""
-            }
-          />
-
-          {/* Max Uses */}
-          <TextField
-            label="Max Uses (Optional)"
-            name="maxUses"
-            type="number"
-            min="1"
-            placeholder="Unlimited if left empty"
-            value={formData.maxUses}
-            onChange={handleChange}
-            fullWidth
-            variant="outlined"
-          />
-
-          {/* Expiry Date */}
-          <TextField
-            label="Expiry Date"
-            name="expiryDate"
-            type="date"
-            value={formData.expiryDate}
-            onChange={handleChange}
-            InputLabelProps={{ shrink: true }}
-            fullWidth
-            variant="outlined"
-            inputProps={{
-              min: new Date().toISOString().split("T")[0],
-              max: maxExpiryDate,
-            }}
-            helperText={
-              maxExpiryDate
-                ? `Promotion must end by ${new Date(maxExpiryDate).toLocaleDateString()}`
-                : "Select expiry date within your listing’s availability"
-            }
-          />
-
-          {/* Description */}
-          <TextField
-            label="Description (Optional)"
-            name="description"
-            placeholder="e.g., 15% off for early bookings"
-            value={formData.description}
-            onChange={handleChange}
-            multiline
-            rows={3}
-            fullWidth
-            variant="outlined"
-          />
-
-          {/* Buttons */}
-          <Box
-            sx={{
-              display: "flex",
-              justifyContent: isEditing ? "space-between" : "flex-end",
-              mt: 3,
-            }}
-          >
-            {isEditing ? (
-              <>
-                <Button
-                  variant="contained"
-                  onClick={handleSubmit}
-                  sx={{
-                    bgcolor: "#E68600",
-                    "&:hover": { bgcolor: "#cc7600" },
-                    textTransform: "none",
-                    fontWeight: 600,
-                  }}
-                >
-                  Update
-                </Button>
-                <Button
-                  variant="contained"
-                  onClick={handleRemove}
-                  sx={{
-                    bgcolor: "#2F2B2B",
-                    "&:hover": { bgcolor: "#000" },
-                    textTransform: "none",
-                    fontWeight: 600,
-                  }}
-                >
-                  Remove Promotion
-                </Button>
-              </>
-            ) : (
-              <Button
-                variant="contained"
-                onClick={handleSubmit}
+          <Box>
+            <Typography variant="body2" sx={{ fontWeight: 700, mb: 1, color: "#000" }}>
+              Promotion Code
+            </Typography>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+              <TextField
+                name="promoCode"
+                value={formData.promoCode}
+                onChange={handleChange}
+                fullWidth
+                placeholder="Enter promo code"
+                variant="outlined"
                 sx={{
-                  bgcolor: "#E68600",
-                  "&:hover": { bgcolor: "#cc7600" },
+                  "& .MuiOutlinedInput-root": {
+                    bgcolor: "#E3F2FD",
+                    borderRadius: "8px",
+                    fontWeight: 600,
+                    fontSize: "0.95rem",
+                    "& fieldset": {
+                      borderColor: "transparent",
+                    },
+                    "&:hover fieldset": {
+                      borderColor: "#90CAF9",
+                    },
+                    "&.Mui-focused fieldset": {
+                      borderColor: "#42A5F5",
+                    },
+                  },
+                }}
+              />
+              <Button
+                onClick={handleGenerateCode}
+                startIcon={<RefreshIcon />}
+                variant="contained"
+                sx={{
                   textTransform: "none",
+                  bgcolor: "#E3F2FD",
+                  color: "#1976D2",
                   fontWeight: 600,
+                  whiteSpace: "nowrap",
+                  boxShadow: "none",
+                  px: 2.5,
+                  "&:hover": {
+                    bgcolor: "#BBDEFB",
+                    boxShadow: "none",
+                  },
                 }}
               >
-                Create Promotion
+                Generate
+              </Button>
+            </Box>
+          </Box>
+
+          {/* Percentage Discount & Actual Discounted Price */}
+          <Box sx={{ display: "flex", gap: 2 }}>
+            <Box sx={{ flex: 1 }}>
+              <Typography variant="body2" sx={{ fontWeight: 700, mb: 1, color: "#000" }}>
+                % Percentage Discount <span style={{ color: "red" }}>*</span>
+              </Typography>
+              <TextField
+                name="percentageDiscount"
+                value={formData.percentageDiscount}
+                onChange={handleChange}
+                type="number"
+                fullWidth
+                placeholder=""
+                variant="outlined"
+                sx={{
+                  "& .MuiOutlinedInput-root": {
+                    bgcolor: "#F5F7FA",
+                    borderRadius: "8px",
+                    "& fieldset": {
+                      borderColor: "#E0E0E0",
+                    },
+                    "&:hover fieldset": {
+                      borderColor: "#BDBDBD",
+                    },
+                    "&.Mui-focused fieldset": {
+                      borderColor: "#1976D2",
+                    },
+                  },
+                }}
+              />
+            </Box>
+
+            <Box sx={{ flex: 1 }}>
+              <Typography variant="body2" sx={{ fontWeight: 700, mb: 1, color: "#000" }}>
+                Actual Discounted Price
+              </Typography>
+              <TextField
+                name="actualDiscountedPrice"
+                value={formData.actualDiscountedPrice ? `₱${formData.actualDiscountedPrice}` : ""}
+                fullWidth
+                placeholder="(uneditable)"
+                variant="outlined"
+                InputProps={{ readOnly: true }}
+                sx={{
+                  "& .MuiOutlinedInput-root": {
+                    bgcolor: "transparent",
+                    borderRadius: "8px",
+                    "& fieldset": {
+                      borderColor: "#BDBDBD",
+                      borderStyle: "dashed",
+                      borderWidth: "2px",
+                    },
+                    "&:hover fieldset": {
+                      borderColor: "#BDBDBD",
+                      borderStyle: "dashed",
+                    },
+                    "&.Mui-focused fieldset": {
+                      borderColor: "#BDBDBD",
+                      borderStyle: "dashed",
+                    },
+                  },
+                  "& .MuiInputBase-input": {
+                    color: "#999",
+                    textAlign: "center",
+                  },
+                }}
+              />
+            </Box>
+          </Box>
+
+          {/* Promo Validity Range */}
+          <Box>
+            <Typography variant="body2" sx={{ fontWeight: 700, mb: 1, color: "#000" }}>
+              Promo Validity range
+            </Typography>
+            <Box
+              ref={dateButtonRef}
+              onClick={handleDateClick}
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                cursor: "pointer",
+                bgcolor: "#F5F7FA",
+                borderRadius: "8px",
+                border: "1px solid #E0E0E0",
+                px: 2,
+                py: 1.5,
+                "&:hover": {
+                  borderColor: "#BDBDBD",
+                },
+              }}
+            >
+              <Typography sx={{ fontWeight: 500, fontSize: "1rem", color: displayDates ? "#30410D" : "#999" }}>
+                {displayDates || "Select date range"}
+              </Typography>
+              <CalendarTodayIcon sx={{ color: "#757575" }} />
+            </Box>
+            
+            <Popover
+              open={Boolean(dateAnchorEl)}
+              anchorEl={dateAnchorEl}
+              onClose={handleDateClose}
+              anchorOrigin={{
+                vertical: "bottom",
+                horizontal: "left",
+              }}
+              transformOrigin={{
+                vertical: "top",
+                horizontal: "left",
+              }}
+            >
+              <Box sx={{ p: 2 }}>
+                <Calendar
+                  onChange={handleDateChange}
+                  value={dateRange}
+                  selectRange={true}
+                  minDate={new Date()}
+                  maxDate={listingAvailability?.end ? new Date(
+                    listingAvailability.end.seconds
+                      ? listingAvailability.end.seconds * 1000
+                      : listingAvailability.end
+                  ) : undefined}
+                />
+                <Box sx={{ mt: 2, display: "flex", gap: 1, justifyContent: "flex-end" }}>
+                  <Button
+                    size="small"
+                    onClick={handleClearDates}
+                    sx={{ textTransform: "none", color: "#666" }}
+                  >
+                    Clear
+                  </Button>
+                </Box>
+              </Box>
+            </Popover>
+          </Box>
+
+          {/* Min Spend Required & Max Users */}
+          <Box sx={{ display: "flex", gap: 2 }}>
+            <Box sx={{ flex: 1 }}>
+              <Typography variant="body2" sx={{ fontWeight: 700, mb: 1, color: "#000" }}>
+                Min. Spend Required
+              </Typography>
+              <TextField
+                name="minSpendRequired"
+                value={formData.minSpendRequired}
+                onChange={handleChange}
+                type="number"
+                fullWidth
+                placeholder="Unlimited if empty"
+                variant="outlined"
+                sx={{
+                  "& .MuiOutlinedInput-root": {
+                    bgcolor: "#F5F7FA",
+                    borderRadius: "8px",
+                    "& fieldset": {
+                      borderColor: "#E0E0E0",
+                    },
+                    "&:hover fieldset": {
+                      borderColor: "#BDBDBD",
+                    },
+                    "&.Mui-focused fieldset": {
+                      borderColor: "#1976D2",
+                    },
+                  },
+                  "& .MuiInputBase-input::placeholder": {
+                    color: "#999",
+                    opacity: 1,
+                  },
+                }}
+              />
+            </Box>
+
+            <Box sx={{ flex: 1 }}>
+              <Typography variant="body2" sx={{ fontWeight: 700, mb: 1, color: "#000" }}>
+                Max Users
+              </Typography>
+              <TextField
+                name="maxUsers"
+                value={formData.maxUsers}
+                onChange={handleChange}
+                type="number"
+                fullWidth
+                placeholder="Unlimited if empty"
+                variant="outlined"
+                sx={{
+                  "& .MuiOutlinedInput-root": {
+                    bgcolor: "#F5F7FA",
+                    borderRadius: "8px",
+                    "& fieldset": {
+                      borderColor: "#E0E0E0",
+                    },
+                    "&:hover fieldset": {
+                      borderColor: "#BDBDBD",
+                    },
+                    "&.Mui-focused fieldset": {
+                      borderColor: "#1976D2",
+                    },
+                  },
+                  "& .MuiInputBase-input::placeholder": {
+                    color: "#999",
+                    opacity: 1,
+                  },
+                }}
+              />
+            </Box>
+          </Box>
+
+          {/* Terms and Conditions */}
+          <Box>
+            <Typography variant="body2" sx={{ fontWeight: 700, mb: 1, color: "#000" }}>
+              Terms and condition
+            </Typography>
+            <TextField
+              value={newTerm}
+              onChange={(e) => setNewTerm(e.target.value)}
+              fullWidth
+              placeholder="Add a term or condition"
+              variant="outlined"
+              onKeyPress={(e) => {
+                if (e.key === "Enter") {
+                  handleAddTerm();
+                }
+              }}
+              InputProps={{
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton
+                      onClick={handleAddTerm}
+                      sx={{
+                        bgcolor: "transparent",
+                        "&:hover": { bgcolor: "#f0f0f0" },
+                      }}
+                    >
+                      <AddIcon />
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
+              sx={{
+                "& .MuiOutlinedInput-root": {
+                  bgcolor: "#F5F7FA",
+                  borderRadius: "8px",
+                  "& fieldset": {
+                    borderColor: "#E0E0E0",
+                  },
+                  "&:hover fieldset": {
+                    borderColor: "#BDBDBD",
+                  },
+                  "&.Mui-focused fieldset": {
+                    borderColor: "#1976D2",
+                  },
+                },
+              }}
+            />
+
+            {/* Display terms as chips */}
+            <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, mt: 2 }}>
+              {formData.termsAndConditions.map((term, index) => (
+                <Chip
+                  key={index}
+                  label={term}
+                  onDelete={() => handleRemoveTerm(index)}
+                  sx={{
+                    bgcolor: "transparent",
+                    border: "1px dashed #BDBDBD",
+                    borderRadius: "16px",
+                    "& .MuiChip-deleteIcon": {
+                      color: "#757575",
+                    },
+                  }}
+                />
+              ))}
+            </Box>
+          </Box>
+
+          {/* Create/Update and Remove Promotion Buttons */}
+          <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 2, mt: 1 }}>
+            {isEditing && (
+              <Button
+                variant="contained"
+                onClick={handleRemove}
+                sx={{
+                  bgcolor: "#333",
+                  color: "#fff",
+                  textTransform: "none",
+                  fontWeight: 700,
+                  borderRadius: "24px",
+                  px: 4,
+                  py: 1.2,
+                  fontSize: "0.95rem",
+                  boxShadow: "none",
+                  "&:hover": {
+                    bgcolor: "#555",
+                    boxShadow: "none",
+                  },
+                }}
+              >
+                Remove Promotion
               </Button>
             )}
+            <Button
+              variant="contained"
+              onClick={handleSubmit}
+              sx={{
+                bgcolor: "#E68600",
+                color: "#fff",
+                textTransform: "none",
+                fontWeight: 700,
+                borderRadius: "24px",
+                px: 5,
+                py: 1.2,
+                fontSize: "0.95rem",
+                boxShadow: "none",
+                "&:hover": {
+                  bgcolor: "#CC7700",
+                  boxShadow: "none",
+                },
+              }}
+            >
+              {isEditing ? "Update" : "Create Promotion"}
+            </Button>
           </Box>
         </Box>
       </DialogContent>

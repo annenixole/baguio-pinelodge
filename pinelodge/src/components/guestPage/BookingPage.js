@@ -1,24 +1,27 @@
-import { Box, Typography, Button, Card, CardContent, Divider, Avatar, Grid, Stack, IconButton, } from "@mui/material";
+import { Box, Typography, Button, Card, CardContent, Divider, Avatar, Grid, Stack, IconButton, Dialog, DialogTitle, DialogContent, TextField, Chip, } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import LocationOnIcon from "@mui/icons-material/LocationOn";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
+import CloseIcon from "@mui/icons-material/Close";
+import LocalOfferIcon from "@mui/icons-material/LocalOffer";
 import NavbarGuest from "./NavbarGuest";
 import { useLocation, useNavigate } from "react-router-dom";
 import StarIcon from "@mui/icons-material/Star";
 import PeopleIcon from "@mui/icons-material/People";
 import HotelIcon from "@mui/icons-material/Hotel";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, addDoc, collection, Timestamp, updateDoc, arrayUnion } from "firebase/firestore";
 import { db, auth } from "../firebase.js";
 import React, { useEffect, useState, useRef } from "react";
 import ArrowBackIosNewIcon from "@mui/icons-material/ArrowBackIosNew";
 import ArrowForwardIosIcon from "@mui/icons-material/ArrowForwardIos";
 import Calendar from "react-calendar";
 import "react-calendar/dist/Calendar.css";
+import emailjs from '@emailjs/browser';
+import { emailConfig } from '../emailConfig';
 
 
 export default function BookingPage() {
-    const paypal = useRef();
     const [hostName, setHostName] = useState("");
     const [currentUser, setCurrentUser] = useState({ name: "", email: "" });
     const navigate = useNavigate();
@@ -26,12 +29,12 @@ export default function BookingPage() {
     const [listing, setListing] = useState(location.state?.listing || null);
     const [isLoading, setIsLoading] = useState(false);
     const [errorMessage, setErrorMessage] = useState("");
+    const [isProcessingBooking, setIsProcessingBooking] = useState(false);
+    const processedOrders = useRef(new Set()); // Track processed PayPal orders
     
     // Booking date selection
     const [showDatePicker, setShowDatePicker] = useState(false);
-    const [bookingRange, setBookingRange] = useState(
-        listing?.type === "accommodation" ? [new Date(), new Date()] : [new Date()]
-    );
+    const [bookingRange, setBookingRange] = useState(null);
     const [savedBookingRange, setSavedBookingRange] = useState(null);
     const [availabilityStart, setAvailabilityStart] = useState(null);
     const [availabilityEnd, setAvailabilityEnd] = useState(null);
@@ -134,7 +137,13 @@ export default function BookingPage() {
                             const today = new Date();
                             today.setHours(0, 0, 0, 0);
 
-                            const effectiveStartDate = startLocal <= today ? today : startLocal;
+                            // Start from the next day of the listing's availability start date
+                            const nextDayAfterStart = new Date(startLocal);
+                            nextDayAfterStart.setDate(nextDayAfterStart.getDate() + 1);
+                            nextDayAfterStart.setHours(0, 0, 0, 0);
+
+                            // Use the later date between next day after start and today
+                            const effectiveStartDate = nextDayAfterStart <= today ? today : nextDayAfterStart;
                             
                             setAvailabilityStart(effectiveStartDate);
                             setAvailabilityEnd(endLocal);
@@ -182,6 +191,12 @@ export default function BookingPage() {
     const [promoCode, setPromoCode] = useState("");
     const [isPromoApplied, setIsPromoApplied] = useState(false);
     const [promoError, setPromoError] = useState("");
+    const [voucherModalOpen, setVoucherModalOpen] = useState(false);
+    const [appliedPromotion, setAppliedPromotion] = useState(null);
+
+    // Payment modal state
+    const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+    const paypalRef = useRef();
 
     useEffect(() => {
         const fetchHostName = async () => {
@@ -190,7 +205,8 @@ export default function BookingPage() {
                     const hostRef = doc(db, "users", listing.hostEmail);
                     const hostSnap = await getDoc(hostRef);
                     if (hostSnap.exists()) {
-                        setHostName(hostSnap.data().name || listing.hostEmail.split("@")[0]);
+                        const hostData = hostSnap.data();
+                        setHostName(hostData.name || listing.hostEmail.split("@")[0]);
                     } else {
                         setHostName(listing.hostEmail.split("@")[0]);
                     }
@@ -229,6 +245,323 @@ export default function BookingPage() {
         };
         fetchCurrentUser();
     }, []);
+
+    // Function to block booked dates in the listing
+    const blockBookedDates = async (hostEmail, listingType, listingId, bookingRange) => {
+        if (!bookingRange || bookingRange.length === 0) return;
+
+        let startDate, endDate;
+        
+        // Handle both single date and range selection
+        if (bookingRange.length === 1) {
+            // Single date (services/experiences)
+            startDate = bookingRange[0];
+            endDate = bookingRange[0];
+        } else if (bookingRange.length === 2) {
+            // Date range (accommodations)
+            startDate = bookingRange[0];
+            endDate = bookingRange[1];
+        } else {
+            return;
+        }
+
+        const blockedDates = [];
+
+        // Generate all dates in the range (or just the single date)
+        const currentDate = new Date(startDate);
+        while (currentDate <= endDate) {
+            blockedDates.push(new Date(currentDate).toISOString().split('T')[0]); // Format as YYYY-MM-DD
+            currentDate.setDate(currentDate.getDate() + 1);
+        }
+
+        // Update the listing document with blocked dates
+        const normalizedType = listingType === "accommodation" ? "accommodation" : listingType;
+        const collectionName = `${normalizedType}s`;
+        const listingRef = doc(db, "users", hostEmail, collectionName, listingId);
+
+        await updateDoc(listingRef, {
+            blockedDates: arrayUnion(...blockedDates)
+        });
+
+        console.log('Blocked dates added to listing:', blockedDates);
+    };
+
+    // PayPal Integration for Payment Modal
+    useEffect(() => {
+        console.log('PayPal useEffect triggered:', { 
+            paymentModalOpen, 
+            hasListing: !!listing, 
+            hasRef: !!paypalRef.current,
+            hasPayPal: !!window.paypal 
+        });
+
+        if (paymentModalOpen && listing) {
+            // Add a small delay to ensure modal is fully rendered
+            const timer = setTimeout(() => {
+                if (paypalRef.current) {
+                    // Clear any existing PayPal buttons
+                    if (paypalRef.current.hasChildNodes()) {
+                        paypalRef.current.innerHTML = '';
+                    }
+
+                    console.log('Rendering PayPal button...');
+
+                    const totalAmount = () => {
+                        const guests = parseInt(savedBookingInfo.guests) || 0;
+                        let basePrice = listing.price || 0;
+
+                        // Apply discount only if promo code is applied
+                        if (isPromoApplied && listing.promotion?.actualDiscountedPrice) {
+                            basePrice = Number(listing.promotion.actualDiscountedPrice);
+                        }
+
+                        if (listing.type === "accommodation") {
+                            if (savedBookingRange && savedBookingRange.length === 2) {
+                                const [start, end] = savedBookingRange;
+                                const nights = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+                                return basePrice * (nights > 0 ? nights : 1);
+                            }
+                            return basePrice;
+                        } else {
+                            return basePrice * (guests > 0 ? guests : 1);
+                        }
+                    };
+
+                    if (!window.paypal) {
+                        console.error('PayPal SDK not loaded!');
+                        return;
+                    }
+
+                    window.paypal
+                        .Buttons({
+                            style: {
+                                layout: 'vertical',
+                                color: 'gold',
+                                shape: 'rect',
+                                label: 'paypal',
+                                height: 45,
+                            },
+                            createOrder: (data, actions) => {
+                                const purchaseUnit = {
+                                    description: `${listing.type === "accommodation" ? "Accommodation" : "Activity"} Booking - ${listing.title}`,
+                                    amount: { 
+                                        currency_code: 'PHP', 
+                                        value: totalAmount().toFixed(2) 
+                                    },
+                                    custom_id: JSON.stringify({
+                                        hostEmail: listing?.hostEmail,
+                                        listingId: listing?.id,
+                                        listingTitle: listing?.title
+                                    })
+                                };
+
+                                return actions.order.create({
+                                    intent: 'CAPTURE',
+                                    purchase_units: [purchaseUnit],
+                                });
+                            },
+                            onApprove: async (data, actions) => {
+                                // Prevent duplicate processing
+                                if (isProcessingBooking) {
+                                    console.log('⏭️ Already processing booking, skipping duplicate call');
+                                    return;
+                                }
+
+                                // Check if this order was already processed
+                                if (processedOrders.current.has(data.orderID)) {
+                                    console.log('⏭️ Order already processed:', data.orderID);
+                                    return;
+                                }
+
+                                try {
+                                    setIsProcessingBooking(true);
+                                    processedOrders.current.add(data.orderID);
+                                    
+                                    console.log('💳 Processing PayPal order:', data.orderID);
+                                    const order = await actions.order.capture();
+                                    console.log('✅ Order captured successfully');
+                                    
+                                    console.log('👤 Current User:', {
+                                        email: currentUser.email,
+                                        name: currentUser.name
+                                    });
+                                    console.log('🏠 Listing:', {
+                                        hostEmail: listing.hostEmail,
+                                        id: listing.id,
+                                        title: listing.title,
+                                        type: listing.type
+                                    });
+                                    
+                                    const bookingData = {
+                                        guestEmail: currentUser.email,
+                                        guestName: currentUser.name,
+                                        guestPhone: savedBookingInfo?.phone || '',
+                                        hostEmail: listing.hostEmail,
+                                        listingId: listing.id,
+                                        listingTitle: listing.title,
+                                        listingType: listing.type,
+                                        numberOfGuests: savedBookingInfo?.guests || 1,
+                                        bookingDates: savedBookingRange ? {
+                                            start: Timestamp.fromDate(savedBookingRange[0]),
+                                            end: savedBookingRange[1] ? Timestamp.fromDate(savedBookingRange[1]) : Timestamp.fromDate(savedBookingRange[0])
+                                        } : null,
+                                        arrivalTime: selectedTime || '',
+                                        paypalOrderId: order.id,
+                                        paypalTransactionId: order.purchase_units[0].payments.captures[0].id,
+                                        amount: totalAmount(),
+                                        currency: 'PHP',
+                                        paymentStatus: 'captured',
+                                        payoutStatus: 'pending',
+                                        createdAt: Timestamp.now(),
+                                        updatedAt: Timestamp.now()
+                                    };
+                                    
+                                    console.log('📝 Booking data prepared:', bookingData);
+                                    
+                                    // Save booking under users/{guestEmail}/bookings subcollection
+                                    console.log('💾 Saving to guest bookings:', `users/${currentUser.email}/bookings`);
+                                    const bookingRef = await addDoc(
+                                        collection(db, 'users', currentUser.email, 'bookings'), 
+                                        bookingData
+                                    );
+                                    
+                                    console.log('✅ Booking saved in guest bookings with ID:', bookingRef.id);
+                                    
+                                    // ALSO save booking under users/{hostEmail}/bookings subcollection for host access
+                                    try {
+                                        const hostBookingData = {
+                                            ...bookingData,
+                                            guestEmail: currentUser.email,
+                                            guestName: currentUser.displayName || currentUser.email.split('@')[0],
+                                            bookingId: bookingRef.id, // Reference to the guest's booking
+                                        };
+                                        
+                                        console.log('💾 Saving to host bookings:', `users/${listing.hostEmail}/bookings`);
+                                        console.log('📝 Host booking data:', hostBookingData);
+                                        
+                                        const hostBookingRef = await addDoc(
+                                            collection(db, 'users', listing.hostEmail, 'bookings'),
+                                            hostBookingData
+                                        );
+                                        
+                                        console.log('✅ Booking also saved in host bookings with ID:', hostBookingRef.id);
+                                    } catch (hostBookingError) {
+                                        console.error('❌ Error saving booking to host:', hostBookingError);
+                                        // Continue even if host booking fails - guest booking is saved
+                                    }
+                                    
+                                    // Block the booked dates in the listing
+                                    try {
+                                        await blockBookedDates(
+                                            listing.hostEmail,
+                                            listing.type,
+                                            listing.id,
+                                            savedBookingRange
+                                        );
+                                        console.log('✅ Dates blocked successfully');
+                                    } catch (dateBlockError) {
+                                        console.error('Error blocking dates:', dateBlockError);
+                                        // Continue even if date blocking fails
+                                    }
+                                    
+                                    // Format dates for email
+                                    const formatDate = (date) => {
+                                        return date.toLocaleDateString('en-US', { 
+                                            year: 'numeric', 
+                                            month: 'long', 
+                                            day: 'numeric' 
+                                        });
+                                    };
+                                    
+                                    const checkInDate = savedBookingRange?.[0] ? formatDate(savedBookingRange[0]) : '';
+                                    const checkOutDate = savedBookingRange?.[1] ? formatDate(savedBookingRange[1]) : checkInDate;
+                                    const checkInOutDate = listing.type === 'accommodations' 
+                                        ? `${checkInDate} - ${checkOutDate}`
+                                        : checkInDate;
+                                    
+                                    // Send confirmation email
+                                    try {
+                                        console.log('Attempting to send email with config:', {
+                                            serviceId: emailConfig.serviceId,
+                                            templateId: emailConfig.paymentConfirmationTemplateId,
+                                            publicKey: emailConfig.publicKey,
+                                            recipientEmail: currentUser.email
+                                        });
+                                        
+                                        const emailParams = {
+                                            user_email: currentUser.email,
+                                            guestName: currentUser.name,
+                                            guestEmail: currentUser.email,
+                                            paymentAmount: `₱${totalAmount().toLocaleString()}`,
+                                            paymentDate: new Date().toLocaleDateString('en-US', { 
+                                                year: 'numeric', 
+                                                month: 'long', 
+                                                day: 'numeric' 
+                                            }),
+                                            eWallet: 'PayPal',
+                                            referenceNum: order.id,
+                                            confirmationNumber: bookingRef.id,
+                                            bookingName: listing.title,
+                                            checkInOutDate: checkInOutDate,
+                                            arrivalTime: selectedTime || 'Not specified',
+                                            numofGuests: savedBookingInfo?.guests || 1,
+                                            hostEmail: listing.hostEmail,
+                                            bookingLink: `${window.location.origin}/GuestPage`
+                                        };
+                                        
+                                        console.log('Email parameters:', emailParams);
+                                        
+                                        const response = await emailjs.send(
+                                            emailConfig.serviceId,
+                                            emailConfig.paymentConfirmationTemplateId,
+                                            emailParams,
+                                            emailConfig.publicKey
+                                        );
+                                        
+                                        console.log('Payment confirmation email sent successfully:', response);
+                                        alert('✅ Payment confirmation email has been sent to ' + currentUser.email);
+                                    } catch (emailError) {
+                                        console.error('Error sending confirmation email:', emailError);
+                                        console.error('Email error details:', {
+                                            message: emailError.message,
+                                            text: emailError.text,
+                                            status: emailError.status
+                                        });
+                                        alert('⚠️ Payment successful but email could not be sent. Error: ' + emailError.text);
+                                    }
+                                    
+                                    alert(`Your booking has been confirmed.\n\nA payment confirmation email has been sent to ${currentUser.email}.\nPlease check your inbox to review your booking details.`);
+                                    setPaymentModalOpen(false);
+                                    
+                                    // Navigate back to the previous page
+                                    setTimeout(() => {
+                                        navigate(-1);
+                                    }, 500);
+                                } catch (error) {
+                                    console.error('Error saving booking:', error);
+                                    alert('Payment successful but there was an error saving your booking. Please contact support.');
+                                } finally {
+                                    // Reset processing flag after completion or error
+                                    setIsProcessingBooking(false);
+                                }
+                            },
+                            onError: (err) => {
+                                console.error('PayPal Error:', err);
+                                alert('Payment Failed! Please try again.');
+                                setIsProcessingBooking(false);
+                                processedOrders.current.delete(err.orderID);
+                            },
+                        })
+                        .render(paypalRef.current)
+                        .catch((err) => {
+                            console.error('Failed to render PayPal button:', err);
+                        });
+                }
+            }, 100); // 100ms delay
+
+            return () => clearTimeout(timer);
+        }
+    }, [paymentModalOpen, listing, savedBookingInfo, savedBookingRange, isPromoApplied]);
 
     if (isLoading) {
         return (
@@ -275,25 +608,69 @@ export default function BookingPage() {
         setFormData({ name: "", email: "", phone: "", guests: "" });
     };
 
-    // Handle promo code application
-    const handleApplyPromo = () => {
+    // Handle promo code application from modal
+    const handleApplyPromoFromModal = () => {
         setPromoError("");
         
         // Check if listing has a promotion
         if (!promotion || !promotion.promoCode) {
             setPromoError("No promotion available for this listing");
-            setIsPromoApplied(false);
             return;
         }
 
         // Validate promo code
         if (promoCode.trim().toUpperCase() === promotion.promoCode.toUpperCase()) {
-            setIsPromoApplied(true);
-            setPromoError("");
+            // Check if booking meets promotion requirements
+            if (checkPromotionEligibility(promotion)) {
+                setIsPromoApplied(true);
+                setAppliedPromotion(promotion);
+                setPromoError("");
+                setVoucherModalOpen(false);
+            } else {
+                setPromoError("This voucher is not valid for this booking");
+                setIsPromoApplied(false);
+                setAppliedPromotion(null);
+            }
         } else {
             setIsPromoApplied(false);
+            setAppliedPromotion(null);
             setPromoError("Invalid promo code");
         }
+    };
+
+    // Check if booking meets promotion requirements
+    const checkPromotionEligibility = (promo) => {
+        if (!promo) return false;
+
+        const currentTotal = calculateTotalPayment();
+
+        // Check minimum spend requirement
+        if (promo.minSpendRequired && currentTotal < Number(promo.minSpendRequired)) {
+            return false;
+        }
+
+        // Check promo validity dates
+        const today = new Date();
+        const startDate = promo.startDate ? new Date(promo.startDate) : null;
+        const endDate = promo.endDate ? new Date(promo.endDate) : null;
+
+        if (startDate && today < startDate) return false;
+        if (endDate && today > endDate) return false;
+
+        // Check max users (if applicable)
+        // This would require tracking usage in the database
+        // For now, we'll just check if maxUsers is set
+        if (promo.maxUsers && Number(promo.maxUsers) <= 0) {
+            return false;
+        }
+
+        return true;
+    };
+
+    // Open voucher modal
+    const handleOpenVoucherModal = () => {
+        setVoucherModalOpen(true);
+        setPromoError("");
     };
 
     // Generate time slots from 8:00 AM to 9:00 PM
@@ -537,12 +914,8 @@ export default function BookingPage() {
                                 <Button
                                     variant="text"
                                     onClick={() => {
-                                        setShowDatePicker(false);
-                                        if (listing?.type === "accommodation") {
-                                            setBookingRange([new Date(), new Date()]);
-                                        } else {
-                                            setBookingRange([new Date()]);
-                                        }
+                                        setBookingRange(null);
+                                        setSavedBookingRange(null);
                                     }}
                                     sx={{
                                         color: "gray",
@@ -573,6 +946,14 @@ export default function BookingPage() {
                                     selectRange={type === "accommodation"}
                                     minDate={availabilityStart || new Date()}
                                     maxDate={availabilityEnd || undefined}
+                                    tileDisabled={({ date, view }) => {
+                                        // Disable dates in month view that are already booked
+                                        if (view === 'month' && listing?.blockedDates) {
+                                            const dateString = date.toISOString().split('T')[0];
+                                            return listing.blockedDates.includes(dateString);
+                                        }
+                                        return false;
+                                    }}
                                     onChange={(range) => {
                                         if (type === "accommodation") {
                                             setBookingRange(range);
@@ -584,14 +965,14 @@ export default function BookingPage() {
                                 />
                             </Box>
 
-                            <Box sx={{ mt: 3, textAlign: "center" }}>
-                                <Typography variant="subtitle2" sx={{ mb: 1 }}>
-                                    Selected Availability:
-                                </Typography>
+                            {bookingRange && bookingRange.length > 0 ? (
+                                <Box sx={{ mt: 3, textAlign: "center" }}>
+                                    <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                                        Selected Availability:
+                                    </Typography>
 
-                                {/*Handle single or range dates dynamically */}
-                                {bookingRange && bookingRange.length > 0 ? (
-                                    type === "accommodation" && bookingRange.length === 2 ? (
+                                    {/*Handle single or range dates dynamically */}
+                                    {type === "accommodation" && bookingRange.length === 2 ? (
                                         <Typography sx={{ color: "#70873F", fontWeight: 600 }}>
                                             {`${bookingRange[0].toLocaleDateString(undefined, {
                                                 year: "numeric",
@@ -611,13 +992,15 @@ export default function BookingPage() {
                                                 day: "numeric",
                                             })}
                                         </Typography>
-                                    )
-                                ) : (
+                                    )}
+                                </Box>
+                            ) : (
+                                <Box sx={{ mt: 3, textAlign: "center" }}>
                                     <Typography variant="body2" color="text.secondary">
                                         No date selected yet.
                                     </Typography>
-                                )}
-                            </Box>
+                                </Box>
+                            )}
 
                             <Box sx={{ display: "flex", justifyContent: "center" }}>
                                 <Button
@@ -1314,82 +1697,582 @@ export default function BookingPage() {
                                 </Typography>
                                 {/* ✅ Discount Section */}
                                 <Divider sx={{ my: 2 }} />
-                                <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>
-                                    Discount
-                                </Typography>
-                                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                                    <input
-                                        type="text"
-                                        value={promoCode}
-                                        onChange={(e) => setPromoCode(e.target.value)}
-                                        placeholder="Enter promo code"
-                                        style={{
-                                            flex: 1,
-                                            backgroundColor: "#f5f5f5",
-                                            borderRadius: 4,
-                                            height: 36,
-                                            border: promoError ? "1px solid #f44336" : "1px solid #e0e0e0",
-                                            padding: "0 12px",
-                                            fontSize: "0.9rem",
-                                        }}
-                                    />
+                                <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
+                                    <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                                        Discount
+                                    </Typography>
+                                    {isPromoApplied && appliedPromotion && (
+                                        <Button
+                                            variant="text"
+                                            onClick={() => {
+                                                setIsPromoApplied(false);
+                                                setAppliedPromotion(null);
+                                                setPromoCode("");
+                                            }}
+                                            sx={{
+                                                textTransform: "none",
+                                                color: "#666",
+                                                fontSize: "0.85rem",
+                                                "&:hover": {
+                                                    bgcolor: "transparent",
+                                                    color: "#D32F2F",
+                                                },
+                                            }}
+                                        >
+                                            Remove
+                                        </Button>
+                                    )}
+                                </Box>
+                                
+                                {!isPromoApplied ? (
                                     <Button
-                                        variant="contained"
-                                        onClick={handleApplyPromo}
+                                        variant="outlined"
+                                        startIcon={<LocalOfferIcon />}
+                                        onClick={handleOpenVoucherModal}
+                                        fullWidth
                                         sx={{
-                                            backgroundColor: "#DE7001",
-                                            color: "white",
-                                            borderRadius: 1,
-                                            px: 3,
-                                            "&:hover": { backgroundColor: "#c95f00" },
+                                            textTransform: "none",
+                                            borderColor: "#c2c2c2ff",
+                                            color: "#E68600",
+                                            py: 1,
+                                            justifyContent: "flex-start",
+                                            "&:hover": {
+                                                borderColor: "#CC7700",
+                                                bgcolor: "#FFF4E6",
+                                            },
                                         }}
                                     >
-                                        Apply
+                                        Apply a discount
                                     </Button>
-                                </Box>
-                                {promoError && (
-                                    <Typography sx={{ color: "#f44336", fontSize: "0.85rem", mt: 0.5, ml: 1 }}>
-                                        {promoError}
-                                    </Typography>
-                                )}
-                                {isPromoApplied && (
-                                    <Typography sx={{ color: "#4caf50", fontSize: "0.85rem", mt: 0.5, ml: 1 }}>
-                                        ✓ Promo code applied successfully!
-                                    </Typography>
+                                ) : (
+                                    <Card
+                                        sx={{
+                                            border: "1px solid #E0E0E0",
+                                            borderRadius: 2,
+                                            p: 2,
+                                            bgcolor: "#FAFAFA",
+                                        }}
+                                    >
+                                        <Box sx={{ display: "flex", alignItems: "flex-start", gap: 2 }}>
+                                            <Box
+                                                sx={{
+                                                    bgcolor: "#E68600",
+                                                    color: "#fff",
+                                                    p: 1,
+                                                    borderRadius: 1,
+                                                    display: "flex",
+                                                    alignItems: "center",
+                                                    justifyContent: "center",
+                                                    minWidth: "40px",
+                                                    height: "40px",
+                                                }}
+                                            >
+                                                <LocalOfferIcon sx={{ fontSize: "1.5rem" }} />
+                                            </Box>
+                                            <Box sx={{ flex: 1 }}>
+                                                <Typography variant="body1" sx={{ fontWeight: 700, fontSize: "0.9rem", mb: 0.5 }}>
+                                                    {appliedPromotion.promoCode} - {appliedPromotion.percentageDiscount}% off discount
+                                                </Typography>
+                                                <Typography variant="body2" sx={{ color: "#666", fontSize: "0.8rem", mb: 1 }}>
+                                                    Valid from {new Date(appliedPromotion.startDate).toLocaleDateString('en-GB', {
+                                                        day: '2-digit',
+                                                        month: 'short',
+                                                        year: 'numeric'
+                                                    })} - {new Date(appliedPromotion.endDate).toLocaleDateString('en-GB', {
+                                                        day: '2-digit',
+                                                        month: 'short',
+                                                        year: 'numeric'
+                                                    })}
+                                                </Typography>
+                                                <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+                                                    <Chip
+                                                        label={`Save ₱${(price - appliedPromotion.actualDiscountedPrice).toFixed(0)}`}
+                                                        size="small"
+                                                        sx={{
+                                                            bgcolor: "#FFE4CC",
+                                                            color: "#E68600",
+                                                            fontWeight: 700,
+                                                            fontSize: "0.75rem",
+                                                            height: "24px",
+                                                        }}
+                                                    />
+                                                    {appliedPromotion.minSpendRequired && (
+                                                        <Chip
+                                                            label={`Min. spend ₱${Number(appliedPromotion.minSpendRequired).toLocaleString()}`}
+                                                            size="small"
+                                                            sx={{
+                                                                bgcolor: "#FFF4E6",
+                                                                color: "#E68600",
+                                                                fontWeight: 600,
+                                                                fontSize: "0.75rem",
+                                                                height: "24px",
+                                                            }}
+                                                        />
+                                                    )}
+                                                    {appliedPromotion.maxUsers && (
+                                                        <Chip
+                                                            label={`${appliedPromotion.maxUsers} left`}
+                                                            size="small"
+                                                            sx={{
+                                                                bgcolor: "#E8F5E9",
+                                                                color: "#2E7D32",
+                                                                fontWeight: 600,
+                                                                fontSize: "0.75rem",
+                                                                height: "24px",
+                                                            }}
+                                                        />
+                                                    )}
+                                                </Box>
+                                            </Box>
+                                        </Box>
+                                    </Card>
                                 )}
                                 {/* ✅ Total Payment Section */}
                                 <Divider sx={{ my: 3 }} />
-                                <Box
-                                    sx={{
-                                        display: "flex",
-                                        justifyContent: "space-between",
-                                        alignItems: "center",
-                                    }}
-                                >
-                                    <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                                        Total Payment
+                                <Box>
+                                    <Typography variant="h6" sx={{ fontWeight: 700, color: "#000", mb: 1 }}>
+                                        Total Amount{" "}
+                                        <Typography component="span" sx={{ fontSize: "0.85rem", fontWeight: 400, color: "#666" }}>
+                                            (incl. fees and tax)
+                                        </Typography>
                                     </Typography>
-                                    <Typography
-                                        variant="h6"
-                                        sx={{ fontWeight: 700, color: "#DE7001" }}
-                                    >
-                                        ₱{calculateTotalPayment().toLocaleString()}
-                                    </Typography>
+                                    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                                        <Box>
+                                            <Typography variant="h5" sx={{ fontWeight: 700, color: "#000", mb: 0.5 }}>
+                                                ₱{calculateTotalPayment().toLocaleString()}
+                                            </Typography>
+                                            {isPromoApplied && promotion?.actualDiscountedPrice && (() => {
+                                                const guests = parseInt(savedBookingInfo.guests) || 0;
+                                                let originalPrice = price || 0;
+                                                let originalTotal = 0;
+                                                
+                                                if (type === "accommodation") {
+                                                    if (savedBookingRange && savedBookingRange.length === 2) {
+                                                        const [start, end] = savedBookingRange;
+                                                        const nights = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+                                                        originalTotal = originalPrice * (nights > 0 ? nights : 1);
+                                                    } else {
+                                                        originalTotal = originalPrice;
+                                                    }
+                                                } else {
+                                                    originalTotal = originalPrice * (guests > 0 ? guests : 1);
+                                                }
+                                                
+                                                return (
+                                                    <Typography 
+                                                        variant="body1" 
+                                                        sx={{ 
+                                                            color: "#999", 
+                                                            textDecoration: "line-through",
+                                                            fontSize: "1.2rem"
+                                                        }}
+                                                    >
+                                                        ₱{originalTotal.toLocaleString()}
+                                                    </Typography>
+                                                );
+                                            })()}
+                                        </Box>
+                                        <Typography variant="body2" sx={{ color: "#999", fontSize: "0.9rem", mt: 0.5 }}>
+                                            {formatBookingRange()}
+                                        </Typography>
+                                    </Box>
                                 </Box>
-                                <Typography
-                                    sx={{ color: "text.secondary", fontSize: "0.9rem", ml: 1, mt: 0.5 }}
-                                >
-                                    {formatBookingRange()}
-                                </Typography>
 
+                                {/* Proceed to Payment Button */}
                                 <Box sx={{ mt: 3 }}>
-                                    <div ref={paypal}></div>
+                                    <Button
+                                        variant="contained"
+                                        fullWidth
+                                        sx={{
+                                            backgroundColor: "#E68600",
+                                            color: "#fff",
+                                            fontWeight: 600,
+                                            fontSize: "1rem",
+                                            py: 1.5,
+                                            borderRadius: 1,
+                                            textTransform: "none",
+                                            "&:hover": {
+                                                backgroundColor: "#D47700",
+                                            },
+                                        }}
+                                        onClick={() => {
+                                            // Validation before opening payment modal
+                                            let missingFields = [];
+                                            if (!savedBookingInfo.phone) missingFields.push('Phone number');
+                                            if (!savedBookingInfo.guests) missingFields.push('Number of guests');
+                                            if (!savedBookingRange || savedBookingRange.length === 0) missingFields.push('Booking dates');
+                                            if (!selectedTime) missingFields.push('Arrival time');
+                                            
+                                            if (missingFields.length > 0) {
+                                                alert(`Please fill in the following details:\n- ${missingFields.join('\n- ')}`);
+                                                return;
+                                            }
+                                            
+                                            // Open payment modal if all fields are filled
+                                            setPaymentModalOpen(true);
+                                        }}
+                                    >
+                                        Proceed to Payment
+                                    </Button>
                                 </Box>
                             </Box>
                         </CardContent>
                     </Card>
                 </Box>
-            </Card> 
+            </Card>
+
+            {/* Voucher Modal */}
+            <Dialog
+                open={voucherModalOpen}
+                onClose={() => setVoucherModalOpen(false)}
+                maxWidth="sm"
+                fullWidth
+                PaperProps={{
+                    sx: { borderRadius: 3 },
+                }}
+            >
+                <DialogTitle sx={{ fontWeight: 700, pb: 1 }}>
+                    Apply a voucher
+                    <IconButton
+                        onClick={() => setVoucherModalOpen(false)}
+                        sx={{ position: "absolute", right: 12, top: 12 }}
+                    >
+                        <CloseIcon />
+                    </IconButton>
+                </DialogTitle>
+                <DialogContent sx={{ pt: 2 }}>
+                    {/* Voucher Code Input */}
+                    <TextField
+                        fullWidth
+                        placeholder="Enter a voucher code"
+                        value={promoCode}
+                        onChange={(e) => {
+                            setPromoCode(e.target.value);
+                            setPromoError(""); // Clear error when typing
+                        }}
+                        variant="outlined"
+                        sx={{
+                            mb: 1,
+                            "& .MuiOutlinedInput-root": {
+                                borderRadius: "8px",
+                            },
+                        }}
+                    />
+                    
+                    {/* Error Message under input field */}
+                    {promoError && (
+                        <Typography sx={{ color: "#D32F2F", fontSize: "0.85rem", mb: 2 }}>
+                            {promoError}
+                        </Typography>
+                    )}
+                    
+                    <Button
+                        fullWidth
+                        variant="contained"
+                        onClick={handleApplyPromoFromModal}
+                        sx={{
+                            bgcolor: "#E68600",
+                            color: "#fff",
+                            textTransform: "none",
+                            fontWeight: 600,
+                            py: 1.2,
+                            borderRadius: "8px",
+                            mb: 3,
+                            "&:hover": {
+                                bgcolor: "#CC7700",
+                            },
+                        }}
+                    >
+                        Apply
+                    </Button>
+
+                    {/* Select a voucher section */}
+                    {promotion && (
+                        <>
+                            <Typography variant="body2" sx={{ fontWeight: 600, mb: 1.5 }}>
+                                Select a voucher
+                            </Typography>
+
+                            {/* Check if booking meets promotion requirements */}
+                            {checkPromotionEligibility(promotion) ? (
+                                <Card
+                                    sx={{
+                                        border: "1px solid #E0E0E0",
+                                        borderRadius: 2,
+                                        p: 2,
+                                        mb: 2,
+                                        cursor: "pointer",
+                                        "&:hover": {
+                                            bgcolor: "#F5F5F5",
+                                        },
+                                    }}
+                                    onClick={() => {
+                                        setPromoCode(promotion.promoCode);
+                                        setPromoError("");
+                                        // Apply promo immediately
+                                        setIsPromoApplied(true);
+                                        setAppliedPromotion(promotion);
+                                        setVoucherModalOpen(false);
+                                    }}
+                                >
+                                    <Box sx={{ display: "flex", alignItems: "flex-start", gap: 2 }}>
+                                        <Box
+                                            sx={{
+                                                bgcolor: "#E68600",
+                                                color: "#fff",
+                                                p: 1,
+                                                borderRadius: 1,
+                                                display: "flex",
+                                                alignItems: "center",
+                                                justifyContent: "center",
+                                            }}
+                                        >
+                                            <LocalOfferIcon />
+                                        </Box>
+                                        <Box sx={{ flex: 1 }}>
+                                            <Typography variant="body1" sx={{ fontWeight: 700 }}>
+                                                {promotion.promoCode} - {promotion.percentageDiscount}% off discount
+                                            </Typography>
+                                            <Typography variant="body2" sx={{ color: "#666", fontSize: "0.85rem" }}>
+                                                Valid from {new Date(promotion.startDate).toLocaleDateString('en-GB', {
+                                                    day: '2-digit',
+                                                    month: 'short',
+                                                    year: 'numeric'
+                                                })} - {new Date(promotion.endDate).toLocaleDateString('en-GB', {
+                                                    day: '2-digit',
+                                                    month: 'short',
+                                                    year: 'numeric'
+                                                })}
+                                            </Typography>
+                                            <Box sx={{ display: "flex", gap: 1, mt: 1, flexWrap: "wrap" }}>
+                                                <Chip
+                                                    label={`Save ₱${(price - promotion.actualDiscountedPrice).toFixed(0)}`}
+                                                    size="small"
+                                                    sx={{
+                                                        bgcolor: "#FFE4CC",
+                                                        color: "#E68600",
+                                                        fontWeight: 600,
+                                                        fontSize: "0.75rem",
+                                                    }}
+                                                />
+                                                {promotion.minSpendRequired && (
+                                                    <Chip
+                                                        label={`Min. spend ₱${Number(promotion.minSpendRequired).toLocaleString()}`}
+                                                        size="small"
+                                                        sx={{
+                                                            bgcolor: "#FFF4E6",
+                                                            color: "#E68600",
+                                                            fontWeight: 600,
+                                                            fontSize: "0.75rem",
+                                                        }}
+                                                    />
+                                                )}
+                                                {promotion.maxUsers && (
+                                                    <Chip
+                                                        label={`${promotion.maxUsers} left`}
+                                                        size="small"
+                                                        sx={{
+                                                            bgcolor: "#E8F5E9",
+                                                            color: "#2E7D32",
+                                                            fontWeight: 600,
+                                                            fontSize: "0.75rem",
+                                                        }}
+                                                    />
+                                                )}
+                                            </Box>
+                                        </Box>
+                                    </Box>
+                                </Card>
+                            ) : (
+                                <Box>
+                                    <Typography variant="body2" sx={{ fontWeight: 600, mb: 1.5 }}>
+                                        Not valid for this booking
+                                    </Typography>
+                                    <Card
+                                        sx={{
+                                            border: "1px solid #E0E0E0",
+                                            borderRadius: 2,
+                                            p: 2,
+                                            mb: 1,
+                                            opacity: 0.6,
+                                            bgcolor: "#F5F5F5",
+                                        }}
+                                    >
+                                        <Box sx={{ display: "flex", alignItems: "flex-start", gap: 2 }}>
+                                            <Box
+                                                sx={{
+                                                    bgcolor: "#999",
+                                                    color: "#fff",
+                                                    p: 1,
+                                                    borderRadius: 1,
+                                                    display: "flex",
+                                                    alignItems: "center",
+                                                    justifyContent: "center",
+                                                }}
+                                            >
+                                                <LocalOfferIcon />
+                                            </Box>
+                                            <Box sx={{ flex: 1 }}>
+                                                <Typography variant="body1" sx={{ fontWeight: 700, color: "#666" }}>
+                                                    {promotion.promoCode} - {promotion.percentageDiscount}% off discount
+                                                </Typography>
+                                                <Typography variant="body2" sx={{ color: "#999", fontSize: "0.85rem" }}>
+                                                    Valid from {new Date(promotion.startDate).toLocaleDateString('en-GB', {
+                                                        day: '2-digit',
+                                                        month: 'short',
+                                                        year: 'numeric'
+                                                    })} - {new Date(promotion.endDate).toLocaleDateString('en-GB', {
+                                                        day: '2-digit',
+                                                        month: 'short',
+                                                        year: 'numeric'
+                                                    })}
+                                                </Typography>
+                                                <Box sx={{ display: "flex", gap: 1, mt: 1, flexWrap: "wrap" }}>
+                                                    <Chip
+                                                        label={`Save ₱${(price - promotion.actualDiscountedPrice).toFixed(0)}`}
+                                                        size="small"
+                                                        sx={{
+                                                            bgcolor: "#E0E0E0",
+                                                            color: "#999",
+                                                            fontWeight: 600,
+                                                            fontSize: "0.75rem",
+                                                        }}
+                                                    />
+                                                    {promotion.minSpendRequired && (
+                                                        <Chip
+                                                            label={`Min. spend ₱${Number(promotion.minSpendRequired).toLocaleString()}`}
+                                                            size="small"
+                                                            sx={{
+                                                                bgcolor: "#E0E0E0",
+                                                                color: "#999",
+                                                                fontWeight: 600,
+                                                                fontSize: "0.75rem",
+                                                            }}
+                                                        />
+                                                    )}
+                                                    {promotion.maxUsers && (
+                                                        <Chip
+                                                            label={`${promotion.maxUsers} left`}
+                                                            size="small"
+                                                            sx={{
+                                                                bgcolor: "#E0E0E0",
+                                                                color: "#999",
+                                                                fontWeight: 600,
+                                                                fontSize: "0.75rem",
+                                                            }}
+                                                        />
+                                                    )}
+                                                </Box>
+                                            </Box>
+                                        </Box>
+                                    </Card>
+                                    <Typography variant="body2" sx={{ color: "#D32F2F", fontSize: "0.85rem", mt: 1 }}>
+                                        {promotion.minSpendRequired && calculateTotalPayment() < Number(promotion.minSpendRequired)
+                                            ? `Reach ₱${Number(promotion.minSpendRequired).toLocaleString()} to use this voucher`
+                                            : "This voucher is not valid for this booking"}
+                                    </Typography>
+                                </Box>
+                            )}
+                        </>
+                    )}
+                </DialogContent>
+            </Dialog>
+
+            {/* Payment Modal */}
+            <Dialog
+                open={paymentModalOpen}
+                onClose={() => setPaymentModalOpen(false)}
+                maxWidth="sm"
+                fullWidth
+                PaperProps={{
+                    sx: { borderRadius: 3, p: 2 },
+                }}
+            >
+                <Box sx={{ position: "relative", mb: 2 }}>
+                    <IconButton
+                        onClick={() => setPaymentModalOpen(false)}
+                        sx={{
+                            position: "absolute",
+                            right: -8,
+                            top: -8,
+                            color: "#666",
+                        }}
+                    >
+                        <CloseIcon />
+                    </IconButton>
+                    <Typography variant="h5" sx={{ fontWeight: 700, color: "#30410D", mb: 3, mt: 3 }}>
+                        Booking Summary
+                    </Typography>
+
+                    {/* Booking Details */}
+                    <Box sx={{ bgcolor: "#F5F7FA", borderRadius: 2, p: 5, mb: 2 }}>
+                        <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1.5 }}>
+                            <Typography sx={{ color: "#666", fontSize: "0.95rem" }}>Property</Typography>
+                            <Typography sx={{ fontWeight: 600, color: "#333", fontSize: "0.95rem", textAlign: "right" }}>
+                                {listing?.title}
+                            </Typography>
+                        </Box>
+                        <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1.5 }}>
+                            <Typography sx={{ color: "#666", fontSize: "0.95rem" }}>Dates</Typography>
+                            <Typography sx={{ fontWeight: 600, color: "#333", fontSize: "0.95rem" }}>
+                                {savedBookingRange && savedBookingRange.length === 2
+                                    ? `${savedBookingRange[0].toLocaleDateString("en-US", { month: "short", day: "numeric" })} - ${savedBookingRange[1].toLocaleDateString("en-US", { month: "short", day: "numeric" })}`
+                                    : savedBookingRange && savedBookingRange.length === 1
+                                    ? savedBookingRange[0].toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+                                    : "Not set"}
+                            </Typography>
+                        </Box>
+                        {type === "accommodation" && savedBookingRange && savedBookingRange.length === 2 && (
+                            <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1.5 }}>
+                                <Typography sx={{ color: "#666", fontSize: "0.95rem" }}>Duration</Typography>
+                                <Typography sx={{ fontWeight: 600, color: "#333", fontSize: "0.95rem" }}>
+                                    {Math.ceil((savedBookingRange[1] - savedBookingRange[0]) / (1000 * 60 * 60 * 24))} nights
+                                </Typography>
+                            </Box>
+                        )}
+                        {selectedTime && (
+                            <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1.5 }}>
+                                <Typography sx={{ color: "#666", fontSize: "0.95rem" }}>Arrival Time</Typography>
+                                <Typography sx={{ fontWeight: 600, color: "#333", fontSize: "0.95rem" }}>
+                                    {selectedTime}
+                                </Typography>
+                            </Box>
+                        )}
+                        
+                        {/* Horizontal Line before Total Amount */}
+                        <Divider sx={{ my: 2 }} />
+                        
+                        <Box sx={{ display: "flex", justifyContent: "space-between" }}>
+                            <Typography sx={{ color: "#666", fontSize: "0.95rem", fontWeight: 700 }}>Total Amount</Typography>
+                            <Typography sx={{ fontWeight: 700, color: "#E68600", fontSize: "1.25rem" }}>
+                                ₱{calculateTotalPayment().toLocaleString()}
+                            </Typography>
+                        </Box>
+                    </Box>
+
+                    {/* Refund Policy Notice */}
+                    <Box sx={{ bgcolor: "#f9f9f9", borderRadius: 1, p: 2, mb: 2, mt: 2 }}>
+                        <Typography sx={{ color: "#666", fontSize: "0.85rem", lineHeight: 1.6, textAlign: "justify" }}>
+                            The host has 24 hours to accept your booking request. You'll pay now, but get a full refund if the booking isn't confirmed.
+                        </Typography>
+                    </Box>
+
+                    {/* Terms Agreement */}
+                    <Box sx={{ mb: 3 }}>
+                        <Typography sx={{ color: "#666", fontSize: "0.85rem", textAlign: "center" }}>
+                            By clicking the payment button, I agree to the{" "}
+                            <span style={{ color: "#30410D", fontWeight: 600, textDecoration: "underline", cursor: "pointer" }}>
+                                booking terms
+                            </span>
+                        </Typography>
+                    </Box>
+
+                    {/* PayPal Buttons */}
+                    <Box sx={{ mt: 3 }}>
+                        <div ref={paypalRef}></div>
+                    </Box>
+                </Box>
+            </Dialog>
         </>
     );
 }

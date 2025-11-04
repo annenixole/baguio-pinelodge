@@ -1,0 +1,22 @@
+{
+  "name": "pinelodge-paypal-server",
+  "version": "1.0.0",
+  "description": "PayPal Payout API server for Pine Lodge booking system",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js"
+  },
+  "keywords": ["paypal", "payout", "booking", "express"],
+  "author": "Pine Lodge",
+  "license": "MIT",
+  "dependencies": {
+    "@paypal/payouts-sdk": "^1.1.1",
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  }
+}
