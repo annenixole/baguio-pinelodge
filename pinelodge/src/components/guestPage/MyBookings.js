@@ -21,6 +21,7 @@ import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import PeopleIcon from "@mui/icons-material/People";
 import NavbarGuest from "./NavbarGuest";
 import ListingModal from "../hostPage/ListingModal.js";
+import { sendBookingCancellationEmail } from "../emailConfig";
 import { collection, query, where, getDocs, doc, updateDoc, getDoc, arrayRemove } from "firebase/firestore";
 import { db, auth } from "../firebase";
 import Swal from "sweetalert2";
@@ -225,6 +226,25 @@ export default function MyBookings() {
                     console.log('✅ Dates unblocked successfully');
                 } catch (dateUnblockError) {
                     console.error('Error unblocking dates:', dateUnblockError);
+                }
+
+                // Send cancellation email to guest
+                try {
+                    console.log('📧 Attempting to send cancellation email...');
+                    const emailResult = await sendBookingCancellationEmail(
+                        user.email,
+                        booking.guestName || user.displayName || user.email.split('@')[0],
+                        booking.listingTitle || booking.bookingName || 'Your Booking'
+                    );
+                    
+                    if (emailResult.success) {
+                        console.log('✅ Cancellation email sent successfully');
+                    } else {
+                        console.error('❌ Failed to send cancellation email:', emailResult.error);
+                    }
+                } catch (emailError) {
+                    console.error('❌ Error sending cancellation email:', emailError);
+                    // Continue even if email fails
                 }
 
                 await Swal.fire({

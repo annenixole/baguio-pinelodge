@@ -10,7 +10,7 @@ import StarIcon from "@mui/icons-material/Star";
 import PeopleIcon from "@mui/icons-material/People";
 import HotelIcon from "@mui/icons-material/Hotel";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
-import { doc, getDoc, addDoc, collection, Timestamp, updateDoc, arrayUnion } from "firebase/firestore";
+import { doc, getDoc, addDoc, collection, Timestamp, updateDoc, arrayUnion, serverTimestamp } from "firebase/firestore";
 import { db, auth } from "../firebase.js";
 import React, { useEffect, useState, useRef } from "react";
 import ArrowBackIosNewIcon from "@mui/icons-material/ArrowBackIosNew";
@@ -179,12 +179,14 @@ export default function BookingPage() {
         email: "",
         phone: "",
         guests: "",
+        paypalEmail: "",
     });
     const [savedBookingInfo, setSavedBookingInfo] = useState({
         name: "",
         email: "",
         phone: "",
         guests: "",
+        paypalEmail: "",
     });
 
     // Promo code state
@@ -229,11 +231,13 @@ export default function BookingPage() {
                     if (userSnap.exists()) {
                         const userData = userSnap.data();
                         setCurrentUser({
+                            uid: user.uid, // Add UID from auth
                             name: userData.name || user.displayName || "",
                             email: user.email || ""
                         });
                     } else {
                         setCurrentUser({
+                            uid: user.uid, // Add UID from auth
                             name: user.displayName || "",
                             email: user.email || ""
                         });
@@ -394,8 +398,10 @@ export default function BookingPage() {
                                     
                                     const bookingData = {
                                         guestEmail: currentUser.email,
+                                        guestUid: currentUser.uid, // Add guest UID for notifications
                                         guestName: currentUser.name,
                                         guestPhone: savedBookingInfo?.phone || '',
+                                        guestPayPalEmail: savedBookingInfo?.paypalEmail || currentUser.email,
                                         hostEmail: listing.hostEmail,
                                         listingId: listing.id,
                                         listingTitle: listing.title,
@@ -506,7 +512,7 @@ export default function BookingPage() {
                                             arrivalTime: selectedTime || 'Not specified',
                                             numofGuests: savedBookingInfo?.guests || 1,
                                             hostEmail: listing.hostEmail,
-                                            bookingLink: `${window.location.origin}/GuestPage`
+                                            bookingLink: `${window.location.origin}/MyBookings`
                                         };
                                         
                                         console.log('Email parameters:', emailParams);
@@ -519,7 +525,6 @@ export default function BookingPage() {
                                         );
                                         
                                         console.log('Payment confirmation email sent successfully:', response);
-                                        alert('✅ Payment confirmation email has been sent to ' + currentUser.email);
                                     } catch (emailError) {
                                         console.error('Error sending confirmation email:', emailError);
                                         console.error('Email error details:', {
@@ -527,19 +532,59 @@ export default function BookingPage() {
                                             text: emailError.text,
                                             status: emailError.status
                                         });
-                                        alert('⚠️ Payment successful but email could not be sent. Error: ' + emailError.text);
                                     }
                                     
-                                    alert(`Your booking has been confirmed.\n\nA payment confirmation email has been sent to ${currentUser.email}.\nPlease check your inbox to review your booking details.`);
+                                    // Create notification for the guest
+                                    try {
+                                        const authUser = auth.currentUser; // Get the actual Firebase auth user
+                                        if (!authUser) {
+                                            console.error('❌ No authenticated user found');
+                                            throw new Error('User not authenticated');
+                                        }
+                                        
+                                        console.log('👤 Creating notification for user:', authUser.uid);
+                                        
+                                        const notificationData = {
+                                            type: 'booking_success',
+                                            title: 'Booking successful!',
+                                            message: `Check your email @${currentUser.email} for the payment details`,
+                                            emailLink: `https://mail.google.com/mail/u/0/#search/from%3Apinelodgebaguio%40gmail.com`,
+                                            bookingId: bookingRef.id,
+                                            listingTitle: listing.title,
+                                            createdAt: serverTimestamp(),
+                                            read: false,
+                                            icon: '🌲' // Baguio Pine Lodge icon
+                                        };
+                                        
+                                        console.log('📝 Notification data:', notificationData);
+                                        
+                                        const notificationRef = await addDoc(
+                                            collection(db, 'users', authUser.uid, 'notifications'),
+                                            notificationData
+                                        );
+                                        
+                                        console.log('✅ Notification created successfully with ID:', notificationRef.id);
+                                        
+                                        // Dispatch event to notify NavbarGuest to reload notifications
+                                        window.dispatchEvent(new Event('bookingComplete'));
+                                    } catch (notificationError) {
+                                        console.error('❌ Error creating notification:', notificationError);
+                                        console.error('Error details:', notificationError.message);
+                                        // Continue even if notification fails
+                                    }
+                                    
+                                    // Show success message with all details
+                                    alert(`✅ Booking Confirmed! Your booking has been successfully confirmed and payment has been processed.`);
+                                    
                                     setPaymentModalOpen(false);
                                     
-                                    // Navigate back to the previous page
+                                    // Navigate back to the previous page after user has time to read
                                     setTimeout(() => {
                                         navigate(-1);
-                                    }, 500);
+                                    }, 3000); // Increased to 3 seconds
                                 } catch (error) {
                                     console.error('Error saving booking:', error);
-                                    alert('Payment successful but there was an error saving your booking. Please contact support.');
+                                    alert('⚠️ Payment successful but there was an error saving your booking.\n\nPlease contact support with your payment details.');
                                 } finally {
                                     // Reset processing flag after completion or error
                                     setIsProcessingBooking(false);
@@ -1346,6 +1391,30 @@ export default function BookingPage() {
                                     />
                                 </Box>
 
+                                {/* PayPal Email Field - Editable */}
+                                <Box>
+                                    <Typography sx={{ fontWeight: 500, mb: 0.5 }}>
+                                        PayPal Email
+                                    </Typography>
+                                    <input
+                                        type="email"
+                                        value={formData.paypalEmail}
+                                        onChange={(e) => setFormData({ ...formData, paypalEmail: e.target.value })}
+                                        placeholder="Enter your PayPal email for refunds"
+                                        style={{
+                                            width: "95%",
+                                            height: 40,
+                                            borderRadius: 6,
+                                            border: "1px solid #ccc",
+                                            padding: "0 10px",
+                                            backgroundColor: "#fff",
+                                        }}
+                                    />
+                                    <Typography sx={{ fontSize: "0.75rem", color: "#666", mt: 0.5 }}>
+                                        Required for processing refunds if booking is cancelled
+                                    </Typography>
+                                </Box>
+
                                 {/* Phone Number and Guests - Horizontal Layout */}
                                 <Box sx={{ display: "flex", gap: 2, width: "95%" }}>
                                     {/* Phone Field - Editable */}
@@ -1442,6 +1511,7 @@ export default function BookingPage() {
                                             name: currentUser.name,
                                             email: currentUser.email,
                                             phone: formData.phone,
+                                            paypalEmail: formData.paypalEmail,
                                             guests: formData.guests,
                                         });
                                         setShowBookingForm(false);
@@ -1603,6 +1673,11 @@ export default function BookingPage() {
                                     <Typography sx={{ fontWeight: 500, mb: 1 }}>
                                         Phone number: <Typography component="span" sx={{ fontWeight: 400, color: "text.secondary" }}>
                                             {savedBookingInfo.phone ? `+63 ${savedBookingInfo.phone}` : "Not set"}
+                                        </Typography>
+                                    </Typography>
+                                    <Typography sx={{ fontWeight: 500, mb: 1 }}>
+                                        PayPal Email: <Typography component="span" sx={{ fontWeight: 400, color: "text.secondary" }}>
+                                            {savedBookingInfo.paypalEmail || "Not set"}
                                         </Typography>
                                     </Typography>
                                     <Typography sx={{ fontWeight: 500 }}>
@@ -1899,6 +1974,7 @@ export default function BookingPage() {
                                             // Validation before opening payment modal
                                             let missingFields = [];
                                             if (!savedBookingInfo.phone) missingFields.push('Phone number');
+                                            if (!savedBookingInfo.paypalEmail) missingFields.push('PayPal Email');
                                             if (!savedBookingInfo.guests) missingFields.push('Number of guests');
                                             if (!savedBookingRange || savedBookingRange.length === 0) missingFields.push('Booking dates');
                                             if (!selectedTime) missingFields.push('Arrival time');
@@ -2241,6 +2317,60 @@ export default function BookingPage() {
                         
                         {/* Horizontal Line before Total Amount */}
                         <Divider sx={{ my: 2 }} />
+                        
+                        {/* Show original price and discount if promo is applied */}
+                        {isPromoApplied && promotion?.actualDiscountedPrice && (
+                            <>
+                                <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
+                                    <Typography sx={{ color: "#666", fontSize: "0.95rem" }}>Original Price</Typography>
+                                    <Typography sx={{ fontWeight: 600, color: "#999", fontSize: "0.95rem", textDecoration: "line-through" }}>
+                                        ₱{(() => {
+                                            const originalPrice = price || 0;
+                                            const guests = parseInt(savedBookingInfo.guests) || 0;
+                                            if (type === "accommodation") {
+                                                if (savedBookingRange && savedBookingRange.length === 2) {
+                                                    const [start, end] = savedBookingRange;
+                                                    const nights = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+                                                    return (originalPrice * (nights > 0 ? nights : 1)).toLocaleString();
+                                                }
+                                                return originalPrice.toLocaleString();
+                                            } else {
+                                                return (originalPrice * (guests > 0 ? guests : 1)).toLocaleString();
+                                            }
+                                        })()}
+                                    </Typography>
+                                </Box>
+                                <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1.5 }}>
+                                    <Typography sx={{ color: "#30410D", fontSize: "0.95rem", fontWeight: 600 }}>Discount</Typography>
+                                    <Typography sx={{ fontWeight: 700, color: "#30410D", fontSize: "0.95rem" }}>
+                                        -₱{(() => {
+                                            const originalPrice = price || 0;
+                                            const discountedPrice = Number(promotion.actualDiscountedPrice);
+                                            const guests = parseInt(savedBookingInfo.guests) || 0;
+                                            let originalTotal = 0;
+                                            let discountedTotal = 0;
+                                            
+                                            if (type === "accommodation") {
+                                                if (savedBookingRange && savedBookingRange.length === 2) {
+                                                    const [start, end] = savedBookingRange;
+                                                    const nights = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+                                                    originalTotal = originalPrice * (nights > 0 ? nights : 1);
+                                                    discountedTotal = discountedPrice * (nights > 0 ? nights : 1);
+                                                } else {
+                                                    originalTotal = originalPrice;
+                                                    discountedTotal = discountedPrice;
+                                                }
+                                            } else {
+                                                originalTotal = originalPrice * (guests > 0 ? guests : 1);
+                                                discountedTotal = discountedPrice * (guests > 0 ? guests : 1);
+                                            }
+                                            
+                                            return (originalTotal - discountedTotal).toFixed(2);
+                                        })()}
+                                    </Typography>
+                                </Box>
+                            </>
+                        )}
                         
                         <Box sx={{ display: "flex", justifyContent: "space-between" }}>
                             <Typography sx={{ color: "#666", fontSize: "0.95rem", fontWeight: 700 }}>Total Amount</Typography>

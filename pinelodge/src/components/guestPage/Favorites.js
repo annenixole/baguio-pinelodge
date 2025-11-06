@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Container, Typography, Grid, Button, IconButton } from '@mui/material';
+import { Box, Container, Typography, Grid, Button, IconButton, CircularProgress } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
+import { auth, db } from '../firebase';
+import { doc, getDoc, collectionGroup, getDocs } from 'firebase/firestore';
 import ListingCardGuest from './ListingCardGuest';
 import NavbarGuest from './NavbarGuest';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
@@ -8,6 +10,7 @@ import FavoriteBorderIcon from '@mui/icons-material/FavoriteBorder';
 
 export default function Favorites() {
   const [favorites, setFavorites] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 6;
   const navigate = useNavigate();
@@ -15,25 +18,116 @@ export default function Favorites() {
   useEffect(() => {
     loadFavorites();
     
-    // Listen for storage changes (when favorites are updated in other components)
-    const handleStorageChange = () => {
+    // Listen for favorites updates from ListingCardGuest
+    const handleFavoritesUpdate = () => {
       loadFavorites();
     };
     
-    window.addEventListener('storage', handleStorageChange);
-    
-    // Also check for updates on focus (when user comes back to this tab)
-    window.addEventListener('focus', loadFavorites);
+    window.addEventListener('favoritesUpdated', handleFavoritesUpdate);
     
     return () => {
-      window.removeEventListener('storage', handleStorageChange);
-      window.removeEventListener('focus', loadFavorites);
+      window.removeEventListener('favoritesUpdated', handleFavoritesUpdate);
     };
   }, []);
 
-  const loadFavorites = () => {
-    const storedFavorites = JSON.parse(localStorage.getItem('favorites') || '[]');
-    setFavorites(storedFavorites);
+  const loadFavorites = async () => {
+    setLoading(true);
+    try {
+      const user = auth.currentUser;
+      
+      if (!user) {
+        console.log("No user signed in");
+        setFavorites([]);
+        setLoading(false);
+        return;
+      }
+
+      console.log("Loading favorites for user:", user.uid);
+
+      // Get user's favorite IDs from Firestore
+      const userDocRef = doc(db, "users", user.uid);
+      const userDoc = await getDoc(userDocRef);
+      
+      if (!userDoc.exists()) {
+        console.log("User document not found");
+        setFavorites([]);
+        setLoading(false);
+        return;
+      }
+
+      const userData = userDoc.data();
+      const favoriteIds = userData.favorites || [];
+
+      console.log("Favorite IDs from Firestore:", favoriteIds);
+
+      if (favoriteIds.length === 0) {
+        console.log("No favorites found");
+        setFavorites([]);
+        setLoading(false);
+        return;
+      }
+
+      // Fetch all favorite listings from all listing types using collectionGroup
+      const allListings = [];
+      
+      // Fetch accommodations from all users using collectionGroup
+      const accommodationsGroup = collectionGroup(db, "accommodations");
+      const accomSnapshot = await getDocs(accommodationsGroup);
+      accomSnapshot.forEach((doc) => {
+        if (favoriteIds.includes(doc.id)) {
+          const pathSegments = doc.ref.path.split('/');
+          const hostEmail = pathSegments[1]; // users/{hostEmail}/accommodations/{id}
+          console.log("Found favorite accommodation:", doc.id);
+          allListings.push({ 
+            id: doc.id, 
+            hostEmail, 
+            ...doc.data(), 
+            type: 'Accommodation' 
+          });
+        }
+      });
+
+      // Fetch experiences from all users using collectionGroup
+      const experiencesGroup = collectionGroup(db, "experiences");
+      const expSnapshot = await getDocs(experiencesGroup);
+      expSnapshot.forEach((doc) => {
+        if (favoriteIds.includes(doc.id)) {
+          const pathSegments = doc.ref.path.split('/');
+          const hostEmail = pathSegments[1]; // users/{hostEmail}/experiences/{id}
+          console.log("Found favorite experience:", doc.id);
+          allListings.push({ 
+            id: doc.id, 
+            hostEmail, 
+            ...doc.data(), 
+            type: 'Experience' 
+          });
+        }
+      });
+
+      // Fetch services from all users using collectionGroup
+      const servicesGroup = collectionGroup(db, "services");
+      const servSnapshot = await getDocs(servicesGroup);
+      servSnapshot.forEach((doc) => {
+        if (favoriteIds.includes(doc.id)) {
+          const pathSegments = doc.ref.path.split('/');
+          const hostEmail = pathSegments[1]; // users/{hostEmail}/services/{id}
+          console.log("Found favorite service:", doc.id);
+          allListings.push({ 
+            id: doc.id, 
+            hostEmail, 
+            ...doc.data(), 
+            type: 'Service' 
+          });
+        }
+      });
+
+      console.log("Total favorites loaded:", allListings.length);
+      setFavorites(allListings);
+    } catch (error) {
+      console.error("Error loading favorites:", error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleViewListing = (listing) => {
@@ -90,7 +184,11 @@ export default function Favorites() {
         </Box>
 
         {/* Favorites Grid */}
-        {favorites.length > 0 ? (
+        {loading ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', py: 10 }}>
+            <CircularProgress sx={{ color: '#30410D' }} />
+          </Box>
+        ) : favorites.length > 0 ? (
           <>
             <Grid container spacing={3}>
               {currentFavorites.map((listing) => (

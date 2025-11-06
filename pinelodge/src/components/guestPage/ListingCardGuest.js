@@ -14,7 +14,8 @@ import FavoriteBorderIcon from "@mui/icons-material/FavoriteBorder";
 import LocalOfferIcon from "@mui/icons-material/LocalOffer";
 import CloseIcon from "@mui/icons-material/Close";
 import { useNavigate } from "react-router-dom";
-import { auth } from "../firebase.js";
+import { auth, db } from "../firebase.js";
+import { doc, getDoc, updateDoc, arrayUnion, arrayRemove } from "firebase/firestore";
 
 export default function ListingCardGuest({ listing, onView, hideTypeLabel = false }) {
     const navigate = useNavigate();
@@ -22,20 +23,39 @@ export default function ListingCardGuest({ listing, onView, hideTypeLabel = fals
     const [copySuccess, setCopySuccess] = useState(false);
     const [isUserSignedIn, setIsUserSignedIn] = useState(false);
     const [promoDetailsOpen, setPromoDetailsOpen] = useState(false);
-    
-    // Check if listing is already favorited on mount
-    const [isFavorite, setIsFavorite] = useState(() => {
-        const favorites = JSON.parse(localStorage.getItem('favorites') || '[]');
-        return favorites.some(fav => fav.id === listing.id);
-    });
+    const [isFavorite, setIsFavorite] = useState(false);
+    const [currentUser, setCurrentUser] = useState(null);
 
-    // Check if user is signed in
+    // Check if user is signed in and load their favorites
     useEffect(() => {
-        const unsubscribe = auth.onAuthStateChanged((user) => {
+        const unsubscribe = auth.onAuthStateChanged(async (user) => {
             setIsUserSignedIn(!!user);
+            setCurrentUser(user);
+            
+            if (user) {
+                // Load user's favorites from Firestore
+                await loadUserFavorites(user.uid);
+            } else {
+                setIsFavorite(false);
+            }
         });
         return () => unsubscribe();
-    }, []);
+    }, [listing.id]);
+
+    const loadUserFavorites = async (userId) => {
+        try {
+            const userDocRef = doc(db, "users", userId);
+            const userDoc = await getDoc(userDocRef);
+            
+            if (userDoc.exists()) {
+                const userData = userDoc.data();
+                const favorites = userData.favorites || [];
+                setIsFavorite(favorites.includes(listing.id));
+            }
+        } catch (error) {
+            console.error("Error loading favorites:", error);
+        }
+    };
 
     const {
         title,
@@ -96,20 +116,36 @@ export default function ListingCardGuest({ listing, onView, hideTypeLabel = fals
         handleShareClose();
     };
 
-    const handleFavoriteClick = (event) => {
+    const handleFavoriteClick = async (event) => {
         event.stopPropagation();
-        const favorites = JSON.parse(localStorage.getItem('favorites') || '[]');
         
-        if (isFavorite) {
-            // Remove from favorites
-            const updatedFavorites = favorites.filter(fav => fav.id !== listing.id);
-            localStorage.setItem('favorites', JSON.stringify(updatedFavorites));
-            setIsFavorite(false);
-        } else {
-            // Add to favorites
-            const updatedFavorites = [...favorites, listing];
-            localStorage.setItem('favorites', JSON.stringify(updatedFavorites));
-            setIsFavorite(true);
+        if (!currentUser) {
+            alert("Please sign in to add favorites");
+            return;
+        }
+        
+        try {
+            const userDocRef = doc(db, "users", currentUser.uid);
+            
+            if (isFavorite) {
+                // Remove from favorites in Firestore
+                await updateDoc(userDocRef, {
+                    favorites: arrayRemove(listing.id)
+                });
+                setIsFavorite(false);
+            } else {
+                // Add to favorites in Firestore
+                await updateDoc(userDocRef, {
+                    favorites: arrayUnion(listing.id)
+                });
+                setIsFavorite(true);
+            }
+            
+            // Trigger custom event to refresh favorites page
+            window.dispatchEvent(new Event('favoritesUpdated'));
+        } catch (error) {
+            console.error("Error updating favorites:", error);
+            alert("Failed to update favorites. Please try again.");
         }
     };
 

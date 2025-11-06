@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { sendPasswordResetEmail } from 'firebase/auth';
-import { auth } from './firebase';
+import { collection, query, where, getDocs, updateDoc, doc } from 'firebase/firestore';
+import { db } from './firebase';
+import { sendResetPasswordEmail } from './emailConfig';
 import { Link } from 'react-router-dom';
 import {Box, Typography, TextField, Button, Paper, Stack, Alert} from '@mui/material';
 import logo from '../elements/BaguioPinelodgelogo.png';
@@ -12,16 +13,49 @@ export default function ForgotPass() {
 
     const handleReset = async (e) => {
         e.preventDefault();
+        setMsg(''); // Clear previous messages
+        
         try {
-            await sendPasswordResetEmail(auth, email);
-            setMsg('Password reset email sent. Please check your inbox.');
-        } catch (error) {
-            if (error.code === 'auth/user-not-found') {
-                setMsg(' No account found with this email.');
-            } else if (error.code === 'auth/invalid-email') {
-                setMsg('Invalid email format.');
+            // Search for user by email field in Firestore
+            const usersRef = collection(db, "users");
+            const q = query(usersRef, where("email", "==", email));
+            const querySnapshot = await getDocs(q);
+
+            if (querySnapshot.empty) {
+                setMsg('❌ No account found with this email.');
+                return;
+            }
+
+            // Get the first matching user document
+            const userDoc = querySnapshot.docs[0];
+            const userId = userDoc.id; // This is the Firebase Auth UID
+
+            // Generate custom reset token (similar to verification token)
+            const resetToken = btoa(`${userId}-${Date.now()}`);
+            const resetLink = `${window.location.origin}/reset-password?token=${resetToken}`;
+            
+            // Save reset token to Firestore with expiration (1 hour)
+            const expirationTime = new Date(Date.now() + 60 * 60 * 1000); // 1 hour from now
+            await updateDoc(doc(db, "users", userId), {
+                resetToken: resetToken,
+                resetTokenExpiry: expirationTime,
+            });
+
+            // Send custom EmailJS template
+            const result = await sendResetPasswordEmail(email, resetLink);
+            
+            if (result.success) {
+                setMsg('✅ Password reset email sent! Check your inbox.');
             } else {
-                setMsg(`${error.message}`);
+                setMsg('⚠️ Could not send email. Please try again.');
+            }
+            
+        } catch (error) {
+            console.error('Reset password error:', error);
+            if (error.code === 'auth/invalid-email') {
+                setMsg('❌ Invalid email format.');
+            } else {
+                setMsg(`❌ Error: ${error.message}`);
             }
         }
     };

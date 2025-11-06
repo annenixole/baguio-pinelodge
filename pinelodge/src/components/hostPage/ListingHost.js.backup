@@ -1,4 +1,4 @@
-﻿import React from "react";
+import React from "react";
 import { Box, Typography, Card, CardContent, useMediaQuery, Button, Dialog, DialogTitle, DialogContent, IconButton, RadioGroup, FormControlLabel, Radio, Divider, Chip, Tabs, Tab, TextField, } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import CloseIcon from "@mui/icons-material/Close";
@@ -10,7 +10,7 @@ import ProfileMenu from "./ProfileMenu";
 import { auth, db } from "../firebase";
 import Calendar from "react-calendar";
 import "react-calendar/dist/Calendar.css";
-import { collection, doc, addDoc, query, getDocs, orderBy, limit, updateDoc } from "firebase/firestore";
+import { collection, doc, addDoc } from "firebase/firestore";
 import axios from "axios";
 import ListingGrid from "./ListingGrid";
 
@@ -18,8 +18,6 @@ import ListingGrid from "./ListingGrid";
 export default function ListingHost({ setSelectedIndex, onProfileSettingsClick }) {
   const [reloadTrigger, setReloadTrigger] = React.useState(0);
   const [userEmail, setUserEmail] = React.useState("");
-  const [notifications, setNotifications] = React.useState([]);
-  const [notificationsCount, setNotificationsCount] = React.useState(0);
   const [open, setOpen] = React.useState(false);
   const [step, setStep] = React.useState(1);
   const [listingType, setListingType] = React.useState("");
@@ -143,85 +141,17 @@ export default function ListingHost({ setSelectedIndex, onProfileSettingsClick }
 
   React.useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((user) => {
-      if (user) {
-        setUserEmail(user.email);
-        loadNotifications(user.uid);
-      } else {
-        setUserEmail("");
-        setNotifications([]);
-        setNotificationsCount(0);
-      }
+      setUserEmail(user ? user.email : "");
     });
     return () => unsubscribe();
   }, []);
-
-  // Load notifications from Firestore
-  const loadNotifications = async (userId) => {
-    try {
-      console.log('🔍 Loading notifications for host:', userId);
-      const notificationsRef = collection(db, "users", userId, "notifications");
-      
-      let querySnapshot;
-      try {
-        const q = query(notificationsRef, orderBy("createdAt", "desc"), limit(10));
-        querySnapshot = await getDocs(q);
-      } catch (orderError) {
-        console.warn('⚠️ orderBy failed, trying without:', orderError.message);
-        const q = query(notificationsRef, limit(10));
-        querySnapshot = await getDocs(q);
-      }
-      
-      const notificationsList = [];
-      querySnapshot.forEach((doc) => {
-        notificationsList.push({ id: doc.id, ...doc.data() });
-      });
-      
-      notificationsList.sort((a, b) => {
-        const aTime = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
-        const bTime = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
-        return bTime - aTime;
-      });
-      
-      setNotifications(notificationsList);
-      const unreadCount = notificationsList.filter(n => !n.read).length;
-      setNotificationsCount(unreadCount);
-    } catch (error) {
-      console.error("❌ Error loading notifications:", error);
-    }
-  };
-
-  // Handle notification click
-  const handleNotificationClick = async (notification) => {
-    try {
-      const user = auth.currentUser;
-      if (user && !notification.read) {
-        const notificationRef = doc(db, "users", user.uid, "notifications", notification.id);
-        await updateDoc(notificationRef, { read: true });
-        await loadNotifications(user.uid);
-      }
-    } catch (error) {
-      console.error("Error handling notification click:", error);
-    }
-  };
-
-  // Refresh notifications
-  const handleRefreshNotifications = () => {
-    const user = auth.currentUser;
-    if (user) {
-      loadNotifications(user.uid);
-    }
-  };
 
   const handleOpen = () => {
     setStep(1);
     setListingType("");
     setOpen(true);
   };
-  
-  const handleClose = () => {
-    setOpen(false);
-    resetAllFields();
-  };
+  const handleClose = () => setOpen(false);
 
   // Reset all form fields and calendar
   const resetAllFields = () => {
@@ -270,46 +200,6 @@ export default function ListingHost({ setSelectedIndex, onProfileSettingsClick }
     setServiceInclusions([]);
     setExperienceInclusions([]);
     setNewInclusion("");
-  };
-
-  // Handle listing type change - clear all fields except address
-  const handleListingTypeChange = (e) => {
-    const newType = e.target.value;
-    
-    // Clear all Step 3 fields when switching listing type
-    setListingTitle("");
-    setDescription("");
-    setPrice("");
-    setCapacity("");
-    setBedroom("");
-    setPhotos([]);
-    
-    setServiceTitle("");
-    setServiceDescription("");
-    setServiceRate("");
-    setServiceMaxGuests("");
-    setServicePhotos([]);
-    
-    setExpTitle("");
-    setExpDescription("");
-    setExpPrice("");
-    setExpGroupSize("");
-    setExpPhotos([]);
-    
-    setAccommodationRules([]);
-    setServiceRules([]);
-    setExperienceRules([]);
-    setRules("");
-    
-    setAccommodationInclusions([]);
-    setServiceInclusions([]);
-    setExperienceInclusions([]);
-    setNewInclusion("");
-    
-    setAvailabilityRange([new Date(), new Date()]);
-    
-    // Set the new listing type
-    setListingType(newType);
   };
 
   // Photo handlers per type
@@ -521,65 +411,78 @@ export default function ListingHost({ setSelectedIndex, onProfileSettingsClick }
       return (
         <>
           {/* Listing Title */}
-        
-            <TextField
+          <Box>
+            <Typography variant="body2" sx={{ fontWeight: 500, mb: 0.5 }}>
+              Listing Title *
+            </Typography>
+            <input
               value={listingTitle}
               onChange={(e) => setListingTitle(e.target.value)}
               required
-              label="Listing Title"
-              variant="outlined"
-              fullWidth
+              type="text"
               placeholder="Add a name that captures your space’s vibe"
+              style={inputStyle}
             />
-        
+          </Box>
           {/* Description */}
-          <TextField
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            required
-            label="Description"
-            variant="outlined"
-            fullWidth
-            multiline
-            rows={4}
-            placeholder="Describe your accommodation and what guests can expect"
-          />
+          <Box>
+            <Typography variant="body2" sx={{ fontWeight: 500, mb: 0.5 }}>
+              Description *
+            </Typography>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              required
+              placeholder="Describe your accommodation and what guests can expect"
+              rows={4}
+              style={textareaStyle}
+            />
+          </Box>
           {/* Price per night */}
-          <TextField
-            value={price}
-            onChange={(e) => setPrice(e.target.value)}
-            required
-            label={step3Header.priceLabel}
-            type="number"
-            inputProps={{ min: 1 }}
-            placeholder="Enter price per night"
-            variant="outlined"
-            fullWidth
-          />
+          <Box>
+            <Typography variant="body2" sx={{ fontWeight: 500, mb: 0.5 }}>
+              {step3Header.priceLabel}
+            </Typography>
+            <input
+              value={price}
+              onChange={(e) => setPrice(e.target.value)}
+              required
+              type="number"
+              min="1"
+              placeholder="Enter price per night"
+              style={inputStyle}
+            />
+          </Box>
           {/*number of bedrooms */}
-          <TextField
-            label="Bedroom/s"
-            type="number"
-            inputProps={{ min: 1 }}
-            placeholder="Enter the number of bedrooms"
-            value={bedrooms}
-            onChange={(e) => setBedroom(e.target.value)}
-            required
-            variant="outlined"
-            fullWidth
-          />
+          <Box>
+            <Typography variant="body2" sx={{ fontWeight: 500, mb: 0.5 }}>
+              Bedroom/s *
+            </Typography>
+            <input
+              type="number"
+              min="1"
+              placeholder="Enter the number of bedrooms"
+              value={bedrooms}
+              onChange={(e) => setBedroom(e.target.value)}
+              required
+              style={inputStyle}
+            />
+          </Box>
           {/* Capacity */}
-          <TextField
-            label="Capacity"
-            type="number"
-            inputProps={{ min: 1 }}
-            placeholder="Enter maximum number of guests"
-            value={capacity}
-            onChange={(e) => setCapacity(e.target.value)}
-            required
-            variant="outlined"
-            fullWidth
-          />
+          <Box>
+            <Typography variant="body2" sx={{ fontWeight: 500, mb: 0.5 }}>
+              Capacity *
+            </Typography>
+            <input
+              type="number"
+              min="1"
+              placeholder="Enter maximum number of guests"
+              value={capacity}
+              onChange={(e) => setCapacity(e.target.value)}
+              required
+              style={inputStyle}
+            />
+          </Box>
           {/* Photos */}
           <Box>
             <Typography sx={{ mb: 1 }}>Photos</Typography>
@@ -598,15 +501,18 @@ export default function ListingHost({ setSelectedIndex, onProfileSettingsClick }
             </Box>
           </Box>
           {/* Map Link (Optional) */}
-          <TextField
-            label="Location Map Link (Optional)"
-            type="url"
-            value={locationUrl}
-            onChange={(e) => setLocationUrl(e.target.value)}
-            placeholder="Paste your Google Maps location URL"
-            variant="outlined"
-            fullWidth
-          />
+          <Box>
+            <Typography variant="body2" sx={{ fontWeight: 500, mb: 0.5 }}>
+              Location Map Link (Optional)
+            </Typography>
+            <input
+              type="url"
+              value={locationUrl}
+              onChange={(e) => setLocationUrl(e.target.value)}
+              placeholder="Paste your Google Maps location URL"
+              style={inputStyle}
+            />
+          </Box>
         </>
       );
     }
@@ -614,46 +520,55 @@ export default function ListingHost({ setSelectedIndex, onProfileSettingsClick }
     if (listingType === "service") {
       return (
         <>
-          <TextField
-            label="Service Title"
-            value={serviceTitle}
-            onChange={(e) => setServiceTitle(e.target.value)}
-            required
-            variant="outlined"
-            fullWidth
-            placeholder="Specify the service you provide"
-          />
+          <Box>
+            <Typography variant="body2" sx={{ fontWeight: 500, mb: 0.5 }}>
+              Service Title *
+            </Typography>
+            <input
+              value={serviceTitle}
+              onChange={(e) => setServiceTitle(e.target.value)}
+              required
+              type="text"
+              placeholder="Specify the service you provide"
+              style={inputStyle}
+            />
+          </Box>
 
-          <TextField
-            label="Description"
-            value={serviceDescription}
-            onChange={(e) => setServiceDescription(e.target.value)}
-            required
-            variant="outlined"
-            fullWidth
-            multiline
-            rows={4}
-            placeholder="Describe your service and what guests can expect"
-          />
+          <Box>
+            <Typography variant="body2" sx={{ fontWeight: 500, mb: 0.5 }}>
+              Description *
+            </Typography>
+            <textarea
+              value={serviceDescription}
+              onChange={(e) => setServiceDescription(e.target.value)}
+              required
+              placeholder="Describe your service and what guests can expect"
+              rows={4}
+              style={textareaStyle}
+            />
+          </Box>
 
-          <TextField
-            label={step3Header.priceLabel}
-            value={serviceRate}
-            onChange={(e) => setServiceRate(e.target.value)}
-            required
-            variant="outlined"
-            fullWidth
-            type="number"
-            inputProps={{ min: 1 }}
-            placeholder="Enter your rate"
-          />
+          <Box>
+            <Typography variant="body2" sx={{ fontWeight: 500, mb: 0.5 }}>
+              {step3Header.priceLabel}
+            </Typography>
+            <input
+              value={serviceRate}
+              onChange={(e) => setServiceRate(e.target.value)}
+              required
+              type="number"
+              min="1"
+              placeholder="Enter your rate"
+              style={inputStyle}
+            />
+          </Box>
 
           <Box>
             <Typography sx={{ mb: 1 }}>Photos</Typography>
             <Box sx={uploaderStyle}>
               <input
                 type="file"
-                accept="image/"
+                accept="image/*"
                 multiple
                 onChange={handlePhotoUpload}
                 style={uploaderInputStyle}
@@ -671,37 +586,46 @@ export default function ListingHost({ setSelectedIndex, onProfileSettingsClick }
     if (listingType === "experience") {
       return (
         <>
-          <TextField
-            label="Experience Title"
-            value={expTitle}
-            onChange={(e) => setExpTitle(e.target.value)}
-            required
-            variant="outlined"
-            fullWidth
-            placeholder="What adventure or experience are you offering"
-          />
-          <TextField
-            label="Description"
-            value={expDescription}
-            onChange={(e) => setExpDescription(e.target.value)}
-            required
-            variant="outlined"
-            fullWidth
-            multiline
-            rows={4}
-            placeholder="Describe what guests can expect from this experience"
-          />
-          <TextField
-            label={step3Header.priceLabel}
-            value={expPrice}
-            onChange={(e) => setExpPrice(e.target.value)}
-            required
-            variant="outlined"
-            fullWidth
-            type="number"
-            inputProps={{ min: 1 }}
-            placeholder="Enter the price"
-          />
+          <Box>
+            <Typography variant="body2" sx={{ fontWeight: 500, mb: 0.5 }}>
+              Experience Title *
+            </Typography>
+            <input
+              value={expTitle}
+              onChange={(e) => setExpTitle(e.target.value)}
+              required
+              type="text"
+              placeholder="What adventure or experience are you offering"
+              style={inputStyle}
+            />
+          </Box>
+          <Box>
+            <Typography variant="body2" sx={{ fontWeight: 500, mb: 0.5 }}>
+              Description *
+            </Typography>
+            <textarea
+              value={expDescription}
+              onChange={(e) => setExpDescription(e.target.value)}
+              required
+              placeholder="Describe what guests can expect from this experience"
+              rows={4}
+              style={textareaStyle}
+            />
+          </Box>
+          <Box>
+            <Typography variant="body2" sx={{ fontWeight: 500, mb: 0.5 }}>
+              {step3Header.priceLabel}
+            </Typography>
+            <input
+              value={expPrice}
+              onChange={(e) => setExpPrice(e.target.value)}
+              required
+              type="number"
+              min="1"
+              placeholder="Enter the price"
+              style={inputStyle}
+            />
+          </Box>
 
           <Box>
             <Typography sx={{ mb: 1 }}>Photos</Typography>
@@ -783,14 +707,7 @@ export default function ListingHost({ setSelectedIndex, onProfileSettingsClick }
         <Typography variant="h4" sx={{ fontWeight: 600, color: '#30410D', mb: -2 }}>
           Listings
         </Typography>
-        {userEmail && <ProfileMenu 
-          userEmail={isMobile ? null : userEmail} 
-          onProfileSettingsClick={onProfileSettingsClick}
-          notifications={notifications}
-          notificationsCount={notificationsCount}
-          onNotificationClick={handleNotificationClick}
-          onRefreshNotifications={handleRefreshNotifications}
-        />}
+        {userEmail && <ProfileMenu userEmail={isMobile ? null : userEmail} onProfileSettingsClick={onProfileSettingsClick} />}
       </Box>
 
       <Typography color="text.secondary" sx={{ mb: 5 }}>
@@ -920,7 +837,7 @@ export default function ListingHost({ setSelectedIndex, onProfileSettingsClick }
                 Choose the type of listing you want to create
               </Typography>
 
-              <RadioGroup value={listingType} onChange={handleListingTypeChange}>
+              <RadioGroup value={listingType} onChange={(e) => setListingType(e.target.value)}>
                 {/* Accommodation */}
                 <Box
                   sx={{
@@ -1057,7 +974,7 @@ export default function ListingHost({ setSelectedIndex, onProfileSettingsClick }
                     native: true,
                   }}
                 >
-                  <option value=""></option>
+                  <option value="">Select an area</option>
                   <option value="Near Session Road">Near Session Road</option>
                   <option value="Near Burnham Park">Near Burnham Park</option>
                   <option value="Near Camp John Hay">Near Camp John Hay</option>
@@ -1178,7 +1095,7 @@ export default function ListingHost({ setSelectedIndex, onProfileSettingsClick }
                     display: "flex",
                     alignItems: "center",
                     border: "1px solid #ccc",
-                    borderRadius: "5px",
+                    borderRadius: "12px",
                     padding: "6px 12px",
                     width: "90%",
                     mb: 2,
@@ -1209,7 +1126,7 @@ export default function ListingHost({ setSelectedIndex, onProfileSettingsClick }
                       key={index}
                       sx={{
                         border: "1px dashed #999",
-                        borderRadius: "5px",
+                        borderRadius: "12px",
                         px: 1.5,
                         py: 0.5,
                         display: "flex",
@@ -1240,7 +1157,7 @@ export default function ListingHost({ setSelectedIndex, onProfileSettingsClick }
                     display: "flex",
                     alignItems: "center",
                     border: "1px solid #ccc",
-                    borderRadius: "5px",
+                    borderRadius: "12px",
                     padding: "6px 12px",
                     width: "90%",
                     mb: 2,
@@ -1270,7 +1187,7 @@ export default function ListingHost({ setSelectedIndex, onProfileSettingsClick }
                       key={index}
                       sx={{
                         border: "1px dashed #999",
-                        borderRadius: "5px",
+                        borderRadius: "12px",
                         px: 1.5,
                         py: 0.5,
                         display: "flex",

@@ -5,7 +5,7 @@ import logoCursor from '../../elements/logoCursor.png';
 import { auth, db } from '../firebase';
 import ProfileMenu from './ProfileMenu';
 import { Box, Button, Typography, Card, CardContent, Container, Grid, Divider, Checkbox, FormControlLabel, Modal } from '@mui/material';
-import { updateDoc, doc } from 'firebase/firestore';
+import { updateDoc, doc, collection, query, getDocs, orderBy, limit } from 'firebase/firestore';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import SpeedIcon from '@mui/icons-material/Speed';
@@ -21,6 +21,8 @@ import SupportAgentIcon from '@mui/icons-material/SupportAgent';
 
 export default function GetStarted() {
   const [userEmail, setUserEmail] = React.useState('');
+  const [notifications, setNotifications] = React.useState([]);
+  const [notificationsCount, setNotificationsCount] = React.useState(0);
   const [step, setStep] = React.useState(1);
   const [agreedToTerms, setAgreedToTerms] = React.useState(false);
   const [openSuccessModal, setOpenSuccessModal] = React.useState(false);
@@ -36,11 +38,65 @@ export default function GetStarted() {
 
   React.useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((user) => {
-      if (user) setUserEmail(user.email);
-      else setUserEmail('');
+      if (user) {
+        setUserEmail(user.email);
+        loadNotifications(user.uid);
+      } else {
+        setUserEmail('');
+        setNotifications([]);
+        setNotificationsCount(0);
+      }
     });
     return () => unsubscribe();
   }, []);
+
+  const loadNotifications = async (userId) => {
+    try {
+      const notificationsRef = collection(db, "users", userId, "notifications");
+      let querySnapshot;
+      try {
+        const q = query(notificationsRef, orderBy("createdAt", "desc"), limit(10));
+        querySnapshot = await getDocs(q);
+      } catch (orderError) {
+        const q = query(notificationsRef, limit(10));
+        querySnapshot = await getDocs(q);
+      }
+      const notificationsList = [];
+      querySnapshot.forEach((doc) => {
+        notificationsList.push({ id: doc.id, ...doc.data() });
+      });
+      notificationsList.sort((a, b) => {
+        const aTime = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
+        const bTime = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
+        return bTime - aTime;
+      });
+      setNotifications(notificationsList);
+      const unreadCount = notificationsList.filter(n => !n.read).length;
+      setNotificationsCount(unreadCount);
+    } catch (error) {
+      console.error("❌ Error loading notifications:", error);
+    }
+  };
+
+  const handleNotificationClick = async (notification) => {
+    try {
+      const user = auth.currentUser;
+      if (user && !notification.read) {
+        const notificationRef = doc(db, "users", user.uid, "notifications", notification.id);
+        await updateDoc(notificationRef, { read: true });
+        await loadNotifications(user.uid);
+      }
+    } catch (error) {
+      console.error("Error handling notification click:", error);
+    }
+  };
+
+  const handleRefreshNotifications = () => {
+    const user = auth.currentUser;
+    if (user) {
+      loadNotifications(user.uid);
+    }
+  };
 
   React.useEffect(() => {
     if (paypal.current && !paypal.current.hasChildNodes()) {
@@ -156,7 +212,13 @@ export default function GetStarted() {
         </Box>
 
         <Box sx={{ display: 'flex', alignItems: 'center', pr: 5 }}>
-          {userEmail && <ProfileMenu userEmail={userEmail} />}
+          {userEmail && <ProfileMenu 
+            userEmail={userEmail}
+            notifications={notifications}
+            notificationsCount={notificationsCount}
+            onNotificationClick={handleNotificationClick}
+            onRefreshNotifications={handleRefreshNotifications}
+          />}
         </Box>
       </Box>
 

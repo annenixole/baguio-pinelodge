@@ -2,6 +2,7 @@ import LandingPage from './components/LandingPage';
 import SignUp from './components/SignUp';
 import SignIn from './components/SignIn';
 import ForgotPass from './components/ForgotPass';
+import ResetPassword from './components/ResetPassword';
 import HostHome from './components/hostPage/HomeHost';
 import HostSidebar from './components/hostPage/SidebarHost';
 import HostListing from './components/hostPage/ListingHost';
@@ -29,6 +30,7 @@ function App() {
         <Route path="/Signup" element={<SignUp />} />
         <Route path="/SignIn" element={<SignIn />} />
         <Route path="/ForgotPass" element={<ForgotPass />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/verifyEmail" element={<VerifyEmail />} />
 
         {/* Public listing link - no login required */}

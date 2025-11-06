@@ -50,8 +50,13 @@ export default function SignIn() {
             const userCredential = await signInWithEmailAndPassword(auth, email, password);
             const user = userCredential.user;
 
-            // Get user document from Firestore to check verification status
-            const userDoc = await getDoc(doc(db, "users", user.uid));
+            // Try to get user document - check both UID and email as document IDs
+            let userDoc = await getDoc(doc(db, "users", user.uid));
+            
+            // If not found by UID, try by email
+            if (!userDoc.exists()) {
+                userDoc = await getDoc(doc(db, "users", user.email));
+            }
 
             if (!userDoc.exists()) {
                 setMsg("No user record found.");

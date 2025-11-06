@@ -19,7 +19,7 @@ import {
 } from '@mui/material';
 import { Edit, PhotoCamera, DeleteForever, PersonOff } from '@mui/icons-material';
 import { auth, db, storage } from '../firebase';
-import { doc, getDoc, updateDoc, setDoc, deleteDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, setDoc, deleteDoc, collection, query, getDocs, orderBy, limit } from 'firebase/firestore';
 import { updateProfile, updatePassword, EmailAuthProvider, reauthenticateWithCredential, deleteUser } from 'firebase/auth';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useNavigate } from 'react-router-dom';
@@ -35,6 +35,8 @@ export default function ProfileSettings() {
         paypalEmail: '',
         bio: ''
     });
+    const [notifications, setNotifications] = useState([]);
+    const [notificationsCount, setNotificationsCount] = useState(0);
     const [isEditing, setIsEditing] = useState(false);
     const [loading, setLoading] = useState(true);
     const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
@@ -54,7 +56,59 @@ export default function ProfileSettings() {
 
     useEffect(() => {
         fetchUserData();
+        const user = auth.currentUser;
+        if (user) {
+            loadNotifications(user.uid);
+        }
     }, []);
+
+    const loadNotifications = async (userId) => {
+        try {
+            const notificationsRef = collection(db, "users", userId, "notifications");
+            let querySnapshot;
+            try {
+                const q = query(notificationsRef, orderBy("createdAt", "desc"), limit(10));
+                querySnapshot = await getDocs(q);
+            } catch (orderError) {
+                const q = query(notificationsRef, limit(10));
+                querySnapshot = await getDocs(q);
+            }
+            const notificationsList = [];
+            querySnapshot.forEach((doc) => {
+                notificationsList.push({ id: doc.id, ...doc.data() });
+            });
+            notificationsList.sort((a, b) => {
+                const aTime = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
+                const bTime = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
+                return bTime - aTime;
+            });
+            setNotifications(notificationsList);
+            const unreadCount = notificationsList.filter(n => !n.read).length;
+            setNotificationsCount(unreadCount);
+        } catch (error) {
+            console.error("❌ Error loading notifications:", error);
+        }
+    };
+
+    const handleNotificationClick = async (notification) => {
+        try {
+            const user = auth.currentUser;
+            if (user && !notification.read) {
+                const notificationRef = doc(db, "users", user.uid, "notifications", notification.id);
+                await updateDoc(notificationRef, { read: true });
+                await loadNotifications(user.uid);
+            }
+        } catch (error) {
+            console.error("Error handling notification click:", error);
+        }
+    };
+
+    const handleRefreshNotifications = () => {
+        const user = auth.currentUser;
+        if (user) {
+            loadNotifications(user.uid);
+        }
+    };
 
     const fetchUserData = async () => {
         try {
@@ -351,7 +405,13 @@ export default function ProfileSettings() {
                     Profile Settings
                 </Typography>
                 {userInfo.email && (
-                    <ProfileMenu userEmail={userInfo.email} />
+                    <ProfileMenu 
+                        userEmail={userInfo.email}
+                        notifications={notifications}
+                        notificationsCount={notificationsCount}
+                        onNotificationClick={handleNotificationClick}
+                        onRefreshNotifications={handleRefreshNotifications}
+                    />
                 )}
             </Box>
 

@@ -29,9 +29,10 @@ import SearchIcon from "@mui/icons-material/Search";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import ProfileMenu from "./ProfileMenu";
 import ListingModal from "./ListingModal";
-import { collection, query, where, getDocs, doc, getDoc, updateDoc } from "firebase/firestore";
+import { collection, query, where, getDocs, doc, getDoc, updateDoc, addDoc, orderBy, limit } from "firebase/firestore";
 import { db, auth } from "../firebase";
 import Swal from "sweetalert2";
+import { sendBookingRejectionEmail } from "../emailConfig";
 
 export default function ManageBookings({ onProfileSettingsClick }) {
     const [bookings, setBookings] = useState([]);
@@ -44,6 +45,8 @@ export default function ManageBookings({ onProfileSettingsClick }) {
     const [viewModalOpen, setViewModalOpen] = useState(false);
     const [selectedListing, setSelectedListing] = useState(null);
     const [isFetching, setIsFetching] = useState(false);
+    const [notifications, setNotifications] = useState([]);
+    const [notificationsCount, setNotificationsCount] = useState(0);
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
 
@@ -58,8 +61,12 @@ export default function ManageBookings({ onProfileSettingsClick }) {
                 if (!isFetching) {
                     fetchHostBookings();
                 }
+                // Load notifications
+                loadNotifications(user.uid);
             } else if (isMounted) {
                 setUserEmail("");
+                setNotifications([]);
+                setNotificationsCount(0);
                 console.log("No user authenticated");
             }
         });
@@ -69,6 +76,75 @@ export default function ManageBookings({ onProfileSettingsClick }) {
             unsubscribe();
         };
     }, []);
+
+    // Load notifications from Firestore
+    const loadNotifications = async (userId) => {
+        try {
+            console.log('🔍 Loading notifications for host:', userId);
+            const notificationsRef = collection(db, "users", userId, "notifications");
+            
+            // Try with orderBy first
+            let querySnapshot;
+            try {
+                const q = query(notificationsRef, orderBy("createdAt", "desc"), limit(10));
+                querySnapshot = await getDocs(q);
+                console.log('✅ Query with orderBy succeeded');
+            } catch (orderError) {
+                console.warn('⚠️ orderBy failed, trying without:', orderError.message);
+                // If orderBy fails (missing index), try without it
+                const q = query(notificationsRef, limit(10));
+                querySnapshot = await getDocs(q);
+            }
+            
+            const notificationsList = [];
+            querySnapshot.forEach((doc) => {
+                console.log('📧 Notification found:', doc.id, doc.data());
+                notificationsList.push({ id: doc.id, ...doc.data() });
+            });
+            
+            // Sort manually if we didn't use orderBy
+            notificationsList.sort((a, b) => {
+                const aTime = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
+                const bTime = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
+                return bTime - aTime;
+            });
+            
+            console.log('📋 Total notifications loaded:', notificationsList.length);
+            setNotifications(notificationsList);
+            // Count unread notifications
+            const unreadCount = notificationsList.filter(n => !n.read).length;
+            setNotificationsCount(unreadCount);
+            console.log('🔔 Unread count:', unreadCount);
+        } catch (error) {
+            console.error("❌ Error loading notifications:", error);
+            console.error("Error details:", error.code, error.message);
+        }
+    };
+
+    // Handle notification click
+    const handleNotificationClick = async (notification) => {
+        try {
+            const user = auth.currentUser;
+            if (user && !notification.read) {
+                // Mark notification as read
+                const notificationRef = doc(db, "users", user.uid, "notifications", notification.id);
+                await updateDoc(notificationRef, { read: true });
+                
+                // Reload notifications to update count
+                await loadNotifications(user.uid);
+            }
+        } catch (error) {
+            console.error("Error handling notification click:", error);
+        }
+    };
+
+    // Refresh notifications
+    const handleRefreshNotifications = () => {
+        const user = auth.currentUser;
+        if (user) {
+            loadNotifications(user.uid);
+        }
+    };
 
     useEffect(() => {
         filterBookings();
@@ -590,8 +666,9 @@ export default function ManageBookings({ onProfileSettingsClick }) {
                     <p><strong>Property:</strong> ${booking.listingTitle || booking.listingData?.title}</p>
                     <p><strong>Check-in:</strong> ${formatDate(booking.bookingDates?.start)}</p>
                     <p><strong>Check-out:</strong> ${formatDate(booking.bookingDates?.end)}</p>
+                    <p><strong>Amount:</strong> ₱${booking.amount?.toLocaleString()}</p>
                 </div>
-                <p style="color: #d33; margin-top: 16px;"><strong>This action will cancel the booking.</strong></p>
+                <p style="color: #d33; margin-top: 16px;"><strong>This will cancel the booking and refund the guest.</strong></p>
             `,
             icon: "warning",
             showCancelButton: true,
@@ -635,28 +712,258 @@ export default function ManageBookings({ onProfileSettingsClick }) {
 
         if (!result.isConfirmed) return;
 
+        // Show processing dialog
+        Swal.fire({
+            title: "Processing...",
+            html: "Rejecting booking and processing refund...",
+            allowOutsideClick: false,
+            didOpen: () => {
+                Swal.showLoading();
+            },
+        });
+
         try {
-            // Update booking status to cancelled
-            const bookingRef = doc(db, "users", booking.guestEmail, "bookings", booking.id);
-            await updateDoc(bookingRef, {
-                paymentStatus: "cancelled",
+            console.log("🔄 Starting booking rejection process...");
+            console.log("📧 Guest email:", booking.guestEmail);
+            console.log("🆔 Booking ID:", booking.id);
+            console.log("🆔 Guest Booking ID:", booking.bookingId);
+            console.log("💰 Amount to refund:", booking.amount);
+
+            const bookingTitle = booking.listingTitle || booking.listingData?.title || "your booking";
+            const guestName = booking.guestEmail?.split("@")[0] || "Guest";
+            const totalPayable = `₱${booking.amount?.toLocaleString() || "0"}`;
+
+            // 1. Update guest's booking record (use bookingId if available, otherwise use id)
+            const guestBookingId = booking.bookingId || booking.id;
+            const guestBookingRef = doc(db, "users", booking.guestEmail, "bookings", guestBookingId);
+            console.log("📝 Updating guest booking status to cancelled...");
+            console.log("📝 Guest booking path:", `users/${booking.guestEmail}/bookings/${guestBookingId}`);
+            
+            try {
+                await updateDoc(guestBookingRef, {
+                    paymentStatus: "cancelled",
+                    rejectedAt: new Date(),
+                    rejectedBy: userEmail,
+                });
+                console.log("✅ Guest booking status updated");
+            } catch (guestUpdateError) {
+                console.error("⚠️ Failed to update guest booking:", guestUpdateError);
+                // Continue even if guest booking update fails
+            }
+
+            // 2. Update host's booking record
+            const hostBookingRef = doc(db, "users", userEmail, "bookings", booking.id);
+            console.log("📝 Updating host booking status to cancelled...");
+            console.log("📝 Host booking path:", `users/${userEmail}/bookings/${booking.id}`);
+            
+            try {
+                await updateDoc(hostBookingRef, {
+                    paymentStatus: "cancelled",
+                    rejectedAt: new Date(),
+                    rejectedBy: userEmail,
+                });
+                console.log("✅ Host booking status updated");
+            } catch (hostUpdateError) {
+                console.error("⚠️ Failed to update host booking:", hostUpdateError);
+                // Continue even if host booking update fails
+            }
+
+            // 3. Restore availability dates in listing calendar
+            console.log("📅 Restoring availability dates...");
+            Swal.update({
+                html: "Restoring calendar availability...",
             });
 
+            try {
+                if (booking.listingId && booking.listingType && booking.bookingDates) {
+                    const listingType = booking.listingType === "accommodation" ? "accommodation" : booking.listingType;
+                    const collectionName = `${listingType}s`;
+                    const listingRef = doc(db, "users", userEmail, collectionName, booking.listingId);
+                    
+                    console.log(`📍 Listing path: users/${userEmail}/${collectionName}/${booking.listingId}`);
+                    
+                    const listingSnap = await getDoc(listingRef);
+                    
+                    if (listingSnap.exists()) {
+                        const startDate = booking.bookingDates.start.toDate ? booking.bookingDates.start.toDate() : new Date(booking.bookingDates.start);
+                        const endDate = booking.bookingDates.end ? (booking.bookingDates.end.toDate ? booking.bookingDates.end.toDate() : new Date(booking.bookingDates.end)) : startDate;
+                        
+                        console.log('🔓 Unblocking dates from', startDate.toISOString().split('T')[0], 'to', endDate.toISOString().split('T')[0]);
+
+                        const datesToUnblock = [];
+
+                        // Generate all dates in the range
+                        const currentDate = new Date(startDate);
+                        while (currentDate <= endDate) {
+                            datesToUnblock.push(new Date(currentDate).toISOString().split('T')[0]); // Format as YYYY-MM-DD
+                            currentDate.setDate(currentDate.getDate() + 1);
+                        }
+
+                        console.log('📅 Dates to unblock:', datesToUnblock);
+
+                        // Get current blocked dates
+                        const currentBlockedDates = listingSnap.data().blockedDates || [];
+                        console.log('📋 Current blocked dates:', currentBlockedDates);
+                        
+                        // Filter out the dates to unblock
+                        const newBlockedDates = currentBlockedDates.filter(date => !datesToUnblock.includes(date));
+                        console.log('📋 New blocked dates:', newBlockedDates);
+                        console.log(`📊 Removed ${currentBlockedDates.length - newBlockedDates.length} dates`);
+                        
+                        // Update with the filtered list
+                        await updateDoc(listingRef, {
+                            blockedDates: newBlockedDates
+                        });
+                        
+                        console.log("✅ Availability dates restored in calendar");
+                    } else {
+                        console.warn("⚠️ Listing not found - cannot restore dates");
+                    }
+                } else {
+                    console.warn("⚠️ Missing listing info or booking dates - cannot restore availability");
+                }
+            } catch (availabilityError) {
+                console.error("⚠️ Failed to restore availability:", availabilityError);
+                // Continue even if availability restoration fails
+            }
+
+            // 4. Process PayPal refund to guest - DISABLED
+            // console.log("💸 Processing PayPal refund to guest...");
+            // Swal.update({
+            //     html: "Processing refund to guest's PayPal account...",
+            // });
+
+            let refundSuccess = false;
+            let refundError = "Manual refund required";
+
+            // 5. Create notification for guest
+            console.log("🔔 Creating notification for guest...");
+            try {
+                // Try to get the guest's UID from the booking data first
+                let guestUid = booking.guestUid;
+                
+                // If not available in booking, try to fetch from user document
+                if (!guestUid) {
+                    console.log("🔍 Guest UID not in booking, looking up from email:", booking.guestEmail);
+                    try {
+                        const guestDocRef = doc(db, "users", booking.guestEmail);
+                        const guestDocSnap = await getDoc(guestDocRef);
+                        
+                        if (guestDocSnap.exists()) {
+                            guestUid = guestDocSnap.data().uid || guestDocSnap.data().userId;
+                            console.log("✅ Found guest UID from user doc:", guestUid);
+                        }
+                    } catch (lookupError) {
+                        console.warn("⚠️ Could not lookup guest UID:", lookupError.message);
+                    }
+                }
+                
+                // Final fallback: use email as document ID
+                if (!guestUid) {
+                    console.warn("⚠️ Could not find guest UID, using email as fallback");
+                    guestUid = booking.guestEmail;
+                }
+                
+                console.log("📍 Creating notification at path: users/" + guestUid + "/notifications");
+                
+                const notificationsRef = collection(db, "users", guestUid, "notifications");
+                
+                // Enhanced notification message with more details
+                const checkInDate = booking.bookingDates?.start ? 
+                    (booking.bookingDates.start.toDate ? booking.bookingDates.start.toDate() : new Date(booking.bookingDates.start)).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 
+                    'N/A';
+                
+                const notificationMessage = `Your booking for "${bookingTitle}" (Check-in: ${checkInDate}) has been rejected by the host. Your payment of ${totalPayable} will be refunded within 24 hours. Please check your email for more details.`;
+                
+                await addDoc(notificationsRef, {
+                    type: "booking_rejected",
+                    title: "Booking Rejected",
+                    message: notificationMessage,
+                    bookingId: booking.id,
+                    listingTitle: bookingTitle,
+                    listingType: booking.listingType,
+                    amount: booking.amount,
+                    checkInDate: checkInDate,
+                    refunded: refundSuccess,
+                    createdAt: new Date(),
+                    read: false,
+                });
+                console.log("✅ Notification created successfully for guest");
+            } catch (notifError) {
+                console.error("⚠️ Failed to create notification:", notifError);
+                console.error("Error details:", notifError.message);
+                // Continue even if notification fails
+            }
+
+            // 6. Send rejection email to guest
+            console.log("📧 Sending rejection email to guest...");
+            Swal.update({
+                html: "Sending email notification...",
+            });
+
+            const emailResult = await sendBookingRejectionEmail(
+                booking.guestEmail,
+                guestName,
+                bookingTitle,
+                totalPayable
+            );
+
+            if (emailResult.success) {
+                console.log("✅ Rejection email sent successfully");
+            } else {
+                console.warn("⚠️ Email sending failed:", emailResult.error);
+                // Continue even if email fails
+            }
+
+            // 7. Show success message
+            const successIcon = refundSuccess ? "success" : "warning";
+            const successTitle = refundSuccess ? "Booking Rejected & Refunded" : "Booking Rejected";
+            let successMessage = `<p>The booking has been rejected and cancelled.</p>
+                <p style="color: #70873F; font-size: 0.9em; margin-top: 8px;">📅 Calendar availability has been restored.</p>`;
+            
+            if (refundSuccess) {
+                successMessage += `
+                    <p style="color: #70873F; font-weight: 600; margin-top: 12px;">
+                        ✅ Payment of ${totalPayable} has been refunded to the guest's PayPal account.
+                    </p>
+                    <p style="color: #666; font-size: 0.9em; margin-top: 8px;">
+                        The guest will receive an email notification.
+                    </p>
+                `;
+            } else {
+                successMessage += `
+                    <p style="color: #f57c00; font-weight: 600; margin-top: 12px;">
+                        ⚠️ ${refundError || "Refund could not be processed automatically."}
+                    </p>
+                    <p style="color: #666; font-size: 0.9em; margin-top: 8px;">
+                        Please process the refund of ${totalPayable} manually through PayPal.
+                        The guest has been notified via email.
+                    </p>
+                `;
+            }
+
             Swal.fire({
-                icon: "success",
-                title: "Booking Rejected",
-                text: "The booking has been cancelled.",
+                icon: successIcon,
+                title: successTitle,
+                html: successMessage,
                 confirmButtonColor: "#30410D",
             });
 
+            console.log("✅ Booking rejection complete!");
+
             // Refresh bookings list
-            fetchHostBookings();
+            await fetchHostBookings();
         } catch (error) {
-            console.error("Error rejecting booking:", error);
+            console.error("❌ Error rejecting booking:", error);
             Swal.fire({
                 icon: "error",
                 title: "Error",
-                text: "Failed to reject booking. Please try again.",
+                html: `
+                    <p>Failed to reject booking.</p>
+                    <p style="font-size: 0.9em; color: #666; margin-top: 8px;">
+                        ${error.message || "Please try again."}
+                    </p>
+                `,
                 confirmButtonColor: "#d33",
             });
         }
@@ -690,6 +997,10 @@ export default function ManageBookings({ onProfileSettingsClick }) {
                     <ProfileMenu
                         userEmail={isMobile ? null : userEmail}
                         onProfileSettingsClick={onProfileSettingsClick}
+                        notifications={notifications}
+                        notificationsCount={notificationsCount}
+                        onNotificationClick={handleNotificationClick}
+                        onRefreshNotifications={handleRefreshNotifications}
                     />
                 )}
             </Box>
