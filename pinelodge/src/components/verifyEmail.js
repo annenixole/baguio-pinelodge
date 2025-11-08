@@ -213,14 +213,14 @@ export default function VerifyEmail() {
               fullWidth
               sx={{
                 py: 1,
-                backgroundColor: "#1C1C1C",
-                color: "#DE7001",
+                backgroundColor: "#30410D",
+                color: "#ffffffff",
                 fontWeight: 550,
                 borderRadius: "12px",
                 height: "38px",
                 "&:hover": {
-                  backgroundColor: "#DE7001",
-                  color: "#1C1C1C",
+                  backgroundColor: "#70873F",
+                  color: "#ffffffff",
                 },
               }}
             >

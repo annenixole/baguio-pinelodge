@@ -176,7 +176,7 @@ export default function NavbarGuest() {
 
   return (
     <>
-      <AppBar position="static" color="transparent" elevation={0} sx={{ paddingTop: "14px", paddingBottom: "14px" }}>
+            <AppBar position="static" elevation={0} sx={{ backgroundColor: "#fffdf3ff", paddingTop: "14px", paddingBottom: "14px" }}>
         <Toolbar sx={{ justifyContent: "space-between" }}>
           <Box display="flex" alignItems="center" gap={1}>
             <Link to="/" style={{ textDecoration: "none" }}>
@@ -279,13 +279,13 @@ export default function NavbarGuest() {
                     borderColor: "#6B7A4D",
                     fontSize: "1.1rem",
                     padding: "8px 20px",
-                    backgroundColor: "#fff",
+                    backgroundColor: "#fffdf3ff",
                     textTransform: "none",
                     borderRadius: "25px",
                     "&:hover": {
                       backgroundColor: "#30410D",
                       borderColor: "#30410D",
-                      color: "#ffffffff"
+                      color: "#fffdf3ff"
                     }
                   }}
                 >
@@ -337,11 +337,11 @@ export default function NavbarGuest() {
                     sx={{
                       color: "#6B7A4D",
                       borderColor: "#6B7A4D",
-                      backgroundColor: "#fff",
+                      backgroundColor: "#fffdf3ff",
                       textTransform: "none",
                       borderRadius: "25px",
                       "&:hover": {
-                        backgroundColor: "#F5F7F0",
+                        backgroundColor: "#fffdf3ff",
                         borderColor: "#30410D",
                         color: "#30410D"
                       }

@@ -7,6 +7,7 @@ import "react-calendar/dist/Calendar.css";
 import NavbarGuest from "./NavbarGuest";
 import ListingCardGuest from "./ListingCardGuest";
 import ListingModal from "../hostPage/ListingModal.js";
+import Footer from "../Footer";
 import { collectionGroup, getDocs } from "firebase/firestore";
 import { db } from "../firebase.js";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -210,7 +211,7 @@ export default function AccomGuest() {
   const currentListings = filteredListings.slice(startIndex, endIndex);
 
   return (
-    <Box sx={{ minHeight: "100vh", bgcolor: "#ffff" }}>
+    <Box sx={{ minHeight: "100vh", bgcolor: "#fffdf3ff" }}>
       {/* Navbar */}
       <NavbarGuest />
 
@@ -605,6 +606,9 @@ export default function AccomGuest() {
         onClose={() => setModalOpen(false)}
         listing={selectedListing}
       />
+
+      {/* Footer */}
+      <Footer />
     </Box>
   );
 }

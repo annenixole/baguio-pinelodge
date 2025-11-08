@@ -116,8 +116,8 @@ export default function SignUp() {
         flexDirection: { xs: 'column', md: 'row' },
         height: '100vh',
         width: '100%',
-        mb: 8,
-        backgroundColor: '#ffffff',
+        overflow: 'hidden',
+        backgroundColor: '#fffdf3ff',
       }}
     >
       {/* Left Side - Image and Overlay Text (hidden on small screens) */}
@@ -128,8 +128,7 @@ export default function SignUp() {
           flex: 1,
           borderRadius: '32px',
           overflow: 'hidden',
-          backgroundColor: '#1C1C1C',
-          height: { md: "100%" },
+          height: { md: "96%" },
           mt: { md: 2 },
           ml: { md: 2 },
         }}
@@ -165,7 +164,7 @@ export default function SignUp() {
             position: 'absolute',
             bottom: 40,
             left: 40,
-            color: '#fff',
+            color: '#fffdf3ff',
             zIndex: 2,
           }}
         >
@@ -257,6 +256,7 @@ export default function SignUp() {
             p: { xs: 3, sm: 4 },
             width: '100%',
             maxWidth: { xs: 340, sm: 420, md: 480 },
+            backgroundColor: 'transparent',
           }}
         >
           <Typography variant="h6" fontWeight={700} gutterBottom sx={{ fontSize: "18px" }}>
@@ -343,11 +343,9 @@ export default function SignUp() {
               <Box 
                 sx={{ 
                   mt: 1.5,
-                  p: 2,
-                  borderRadius: 2,
-                  border: '1px solid',
+                  p: 0,
                   borderColor: agree ? '#70873F' : '#e0e0e0',
-                  backgroundColor: agree ? 'rgba(112, 135, 63, 0.05)' : '#fafafa',
+                  backgroundColor: 'transparent',
                   transition: 'all 0.3s ease',
                 }}
               >
@@ -428,12 +426,12 @@ export default function SignUp() {
                 fullWidth
                 sx={{
                   py: 1.1,
-                  backgroundColor: '#1C1C1C',
-                  color: '#DE7001',
+                  backgroundColor: '#30410D',
+                  color: '#ffffffff',
                   fontWeight: 550,
                   borderRadius: '12px',
                   height: "38px",
-                  '&:hover': { backgroundColor: '#DE7001', color: '#1C1C1C' },
+                  '&:hover': { backgroundColor: '#70873F', color: '#ffffffff' },
                 }}
               >
                 Create Account

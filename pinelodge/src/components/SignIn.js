@@ -110,7 +110,7 @@ export default function SignIn() {
                 flexDirection: { xs: 'column-reverse', md: 'row' },
                 height: '100vh',
                 width: '100%',
-                backgroundColor: '#ffffff',
+                backgroundColor: '#fffdf3ff',
             }}
         >
             {/*Sign In Form */}
@@ -187,6 +187,7 @@ export default function SignIn() {
                         p: { xs: 3, sm: 4 },
                         width: '100%',
                         maxWidth: { xs: 340, sm: 420, md: 480 },
+                        backgroundColor: '#fffdf3ff',
                     }}
                 >
                     <Typography variant="h6" fontWeight={700} gutterBottom sx={{ fontSize: "18px" }}>
@@ -247,12 +248,12 @@ export default function SignIn() {
                                 fullWidth
                                 sx={{
                                     py: 1.1,
-                                    backgroundColor: '#1C1C1C',
-                                    color: '#DE7001',
+                                    backgroundColor: '#30410D',
+                                    color: '#ffffffff',
                                     fontWeight: 550,
                                     borderRadius: '12px',
                                     height: "38px",
-                                    '&:hover': { backgroundColor: '#DE7001', color: '#1C1C1C' },
+                                    '&:hover': { backgroundColor: '#70873F', color: '#ffffffff' },
                                 }}
                             >
                                 Sign In

@@ -9,10 +9,16 @@ import {
     Dialog,
     DialogTitle,
     DialogContent,
+    DialogActions,
     IconButton,
     Tabs,
     Tab,
     Grid,
+    Radio,
+    RadioGroup,
+    FormControlLabel,
+    FormControl,
+    TextField,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import LocationOnIcon from "@mui/icons-material/LocationOn";
@@ -36,6 +42,10 @@ export default function MyBookings() {
     const [listingDetails, setListingDetails] = useState(null);
     const [listingModalOpen, setListingModalOpen] = useState(false);
     const [selectedListing, setSelectedListing] = useState(null);
+    const [cancelModalOpen, setCancelModalOpen] = useState(false);
+    const [bookingToCancel, setBookingToCancel] = useState(null);
+    const [cancellationReason, setCancellationReason] = useState('');
+    const [otherReason, setOtherReason] = useState('');
 
     useEffect(() => {
         fetchBookings();
@@ -141,20 +151,35 @@ export default function MyBookings() {
         let filtered = [];
 
         switch (currentTab) {
-            case 0: // Upcomings
+            case 0: // Pending
+                filtered = bookings.filter((booking) => 
+                    booking.paymentStatus === "pending" || 
+                    booking.paymentStatus === "paid" || 
+                    (!booking.paymentStatus && !booking.confirmedAt && !booking.paymentTransferred)
+                );
+                break;
+            case 1: // Upcomings
                 filtered = bookings.filter((booking) => {
                     const startDate = booking.bookingDates?.start?.toDate();
-                    return startDate && startDate >= now && booking.paymentStatus !== "cancelled";
+                    return startDate && startDate >= now && 
+                           booking.paymentStatus !== "cancelled" && 
+                           booking.paymentStatus !== "refunded" &&
+                           booking.paymentStatus !== "pending" &&
+                           (booking.paymentStatus === "confirmed" || booking.confirmedAt || booking.paymentTransferred);
                 });
                 break;
-            case 1: // Completed
+            case 2: // Completed
                 filtered = bookings.filter((booking) => {
                     const endDate = booking.bookingDates?.end?.toDate();
-                    return endDate && endDate < now && booking.paymentStatus !== "cancelled";
+                    return endDate && endDate < now && 
+                           booking.paymentStatus !== "cancelled" && 
+                           booking.paymentStatus !== "refunded";
                 });
                 break;
-            case 2: // Cancelled
-                filtered = bookings.filter((booking) => booking.paymentStatus === "cancelled");
+            case 3: // Cancelled
+                filtered = bookings.filter((booking) => 
+                    booking.paymentStatus === "cancelled" || booking.paymentStatus === "refunded"
+                );
                 break;
             default:
                 filtered = bookings;
@@ -163,12 +188,51 @@ export default function MyBookings() {
         setFilteredBookings(filtered);
     };
 
-    const handleCancelBooking = async (bookingId) => {
+    const handleOpenCancelModal = (bookingId) => {
         const booking = bookings.find(b => b.id === bookingId);
-        
+        setBookingToCancel(booking);
+        setCancelModalOpen(true);
+        setCancellationReason('');
+        setOtherReason('');
+    };
+
+    const handleCloseCancelModal = () => {
+        setCancelModalOpen(false);
+        setBookingToCancel(null);
+        setCancellationReason('');
+        setOtherReason('');
+    };
+
+    const handleCancelBooking = async () => {
+        if (!cancellationReason) {
+            Swal.fire({
+                title: "Reason Required",
+                text: "Please select a reason for cancellation",
+                icon: "warning",
+                confirmButtonColor: "#30410D",
+            });
+            return;
+        }
+
+        if (cancellationReason === 'other' && !otherReason.trim()) {
+            Swal.fire({
+                title: "Details Required",
+                text: "Please provide details for your cancellation",
+                icon: "warning",
+                confirmButtonColor: "#30410D",
+            });
+            return;
+        }
+
+        handleCloseCancelModal();
+
+        const finalReason = cancellationReason === 'other' ? otherReason : cancellationReason;
+        const bookingId = bookingToCancel.id;
+        const booking = bookingToCancel;
+
         const result = await Swal.fire({
             title: "Cancel Booking?",
-            text: "Are you sure you want to cancel this booking?",
+            text: "Are you sure you want to cancel this booking? This action cannot be undone.",
             icon: "warning",
             showCancelButton: true,
             confirmButtonColor: "#d33",
@@ -184,10 +248,127 @@ export default function MyBookings() {
                 console.log('🚫 Cancelling booking:', bookingId);
                 console.log('📋 Booking details:', booking);
                 
+                // 💰 Process PayPal Refund
+                let refundSuccess = false;
+                let refundId = null;
+                
+                // Check refund eligibility
+                console.log('🔍 Checking refund eligibility:');
+                console.log('  - paypalTransactionId:', booking.paypalTransactionId);
+                console.log('  - paymentStatus:', booking.paymentStatus);
+                console.log('  - amount:', booking.amount || booking.totalAmount);
+                
+                // Process refund if transaction ID exists (regardless of current payment status)
+                if (booking.paypalTransactionId) {
+                    try {
+                        console.log('💸 Processing PayPal refund...');
+                        
+                        // PayPal credentials
+                        const PAYPAL_CLIENT_ID = "AS3N5e6j5mD8MZwH8V2rJOru1tmZbQHcid1nob6gTAUdKDzPb1YnWSGXam1ZC7JIQdM3TQT2gY1YAzdf";
+                        const PAYPAL_SECRET = "EFWGpjDlX0vv2Q5494kQO1QTjqdzvW1FYvtf26JW_p_AnPmuZSnWJxXl2ryR6Mequ-rswCHsG8HFC1Gh";
+                        const PAYPAL_API_BASE = "https://api-m.sandbox.paypal.com";
+                        
+                        // 1. Get PayPal access token
+                        console.log('🔐 Getting PayPal access token...');
+                        const authString = btoa(`${PAYPAL_CLIENT_ID}:${PAYPAL_SECRET}`);
+                        const tokenResponse = await fetch(`${PAYPAL_API_BASE}/v1/oauth2/token`, {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': `Basic ${authString}`,
+                                'Content-Type': 'application/x-www-form-urlencoded'
+                            },
+                            body: 'grant_type=client_credentials'
+                        });
+                        
+                        const tokenData = await tokenResponse.json();
+                        const accessToken = tokenData.access_token;
+                        
+                        if (!accessToken) {
+                            console.error('❌ No access token received:', tokenData);
+                            throw new Error('Failed to get PayPal access token');
+                        }
+                        
+                        console.log('✅ Access token received');
+                        
+                        // 2. Process refund via PayPal API
+                        const refundAmount = parseFloat(booking.amount || booking.totalAmount).toFixed(2);
+                        const refundCurrency = booking.currency || 'PHP';
+                        
+                        console.log(`💰 Requesting refund: ${refundCurrency} ${refundAmount}`);
+                        console.log(`🎫 Capture ID: ${booking.paypalTransactionId}`);
+                        
+                        const refundResponse = await fetch(
+                            `${PAYPAL_API_BASE}/v2/payments/captures/${booking.paypalTransactionId}/refund`,
+                            {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'Authorization': `Bearer ${accessToken}`
+                                },
+                                body: JSON.stringify({
+                                    amount: {
+                                        value: refundAmount,
+                                        currency_code: refundCurrency
+                                    },
+                                    note_to_payer: `Refund for cancelled booking. Reason: ${finalReason}`
+                                })
+                            }
+                        );
+                        
+                        const refundData = await refundResponse.json();
+                        
+                        console.log('📨 PayPal Response:', refundData);
+                        console.log('📊 Response Status:', refundResponse.status);
+                        
+                        if (refundResponse.ok && refundData.id) {
+                            refundSuccess = true;
+                            refundId = refundData.id;
+                            console.log('✅ REFUND SUCCESSFUL!');
+                            console.log('✅ Refund ID:', refundId);
+                            console.log('✅ Amount refunded:', refundData.amount?.value, refundData.amount?.currency_code);
+                            console.log('✅ Status:', refundData.status);
+                        } else {
+                            console.error('❌ REFUND FAILED!');
+                            console.error('❌ Status Code:', refundResponse.status);
+                            console.error('❌ Error Details:', refundData);
+                            
+                            // Show error to user
+                            await Swal.fire({
+                                title: "Refund Failed",
+                                html: `
+                                    <p>Booking was cancelled, but refund could not be processed.</p>
+                                    <p style="color: #d33; font-size: 0.9em; margin-top: 8px;">
+                                        ${refundData.message || refundData.error || 'Unknown error'}
+                                    </p>
+                                `,
+                                icon: "warning",
+                                confirmButtonColor: "#30410D",
+                            });
+                        }
+                        
+                    } catch (refundError) {
+                        console.error('❌ REFUND ERROR:', refundError);
+                        console.error('❌ Error details:', refundError.message);
+                        
+                        // Show error to user
+                        await Swal.fire({
+                            title: "Refund Error",
+                            text: `Failed to process refund: ${refundError.message}`,
+                            icon: "error",
+                            confirmButtonColor: "#30410D",
+                        });
+                    }
+                } else {
+                    console.warn('⚠️ No PayPal transaction ID found - skipping refund');
+                }
+                
                 // Update guest's booking
                 const guestBookingRef = doc(db, "users", user.email, "bookings", bookingId);
                 await updateDoc(guestBookingRef, {
-                    paymentStatus: "cancelled",
+                    paymentStatus: refundSuccess ? "refunded" : "cancelled",
+                    refundId: refundId || null,
+                    refundedAt: refundSuccess ? new Date() : null,
+                    cancellationReason: finalReason,
                     updatedAt: new Date(),
                 });
                 console.log('✅ Guest booking updated');
@@ -247,12 +428,30 @@ export default function MyBookings() {
                     // Continue even if email fails
                 }
 
-                await Swal.fire({
-                    title: "Cancelled!",
-                    text: "Your booking has been cancelled and the dates are now available again.",
-                    icon: "success",
-                    confirmButtonColor: "#30410D",
-                });
+                // Show success message with refund info
+                if (refundSuccess) {
+                    await Swal.fire({
+                        title: "Booking Cancelled & Refunded!",
+                        html: `
+                            <p>Your booking has been cancelled successfully.</p>
+                            <p style="color: #70873F; font-weight: 600; margin-top: 12px;">
+                                ✅ Refund of ₱${parseFloat(booking.amount || booking.totalAmount).toLocaleString()} has been processed.
+                            </p>
+                            <p style="color: #666; font-size: 0.9em; margin-top: 8px;">
+                                The refund will be sent to your PayPal account within 3-5 business days.
+                            </p>
+                        `,
+                        icon: "success",
+                        confirmButtonColor: "#30410D",
+                    });
+                } else {
+                    await Swal.fire({
+                        title: "Booking Cancelled",
+                        text: "Your booking has been cancelled and the dates are now available again.",
+                        icon: "success",
+                        confirmButtonColor: "#30410D",
+                    });
+                }
 
                 fetchBookings();
             } catch (error) {
@@ -360,6 +559,7 @@ export default function MyBookings() {
     };
 
     const getStatusColor = (booking) => {
+        if (booking.paymentStatus === "refunded") return "error";
         if (booking.paymentStatus === "cancelled") return "error";
         // Check if payment was transferred or booking was confirmed
         if (booking.paymentTransferred === true) return "success";
@@ -368,6 +568,7 @@ export default function MyBookings() {
     };
 
     const getStatusLabel = (booking) => {
+        if (booking.paymentStatus === "refunded") return "Cancelled";
         if (booking.paymentStatus === "cancelled") return "Cancelled";
         // Check if payment was transferred or booking was confirmed
         if (booking.paymentTransferred === true) return "Confirmed";
@@ -414,6 +615,7 @@ export default function MyBookings() {
                             },
                         }}
                     >
+                        <Tab label="Pending" />
                         <Tab label="Upcomings" />
                         <Tab label="Completed" />
                         <Tab label="Cancelled" />
@@ -508,6 +710,29 @@ export default function MyBookings() {
                                             </Typography>
                                         </Box>
 
+                                        {/* Booking ID */}
+                                        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, mb: 2 }}>
+                                            <Typography variant="body2" color="text.secondary" sx={{ fontSize: "0.95rem", fontWeight: 500 }}>
+                                                Booking ID: <span style={{ color: "#30410D", fontWeight: 600 }}>{booking.id}</span>
+                                            </Typography>
+                                        </Box>
+
+                                        {/* Discount Badge (if any) */}
+                                        {booking.discountPercent && booking.discountPercent > 0 && (
+                                            <Box sx={{ mb: 2 }}>
+                                                <Chip
+                                                    label={`${booking.discountPercent}% off discount`}
+                                                    size="small"
+                                                    sx={{
+                                                        bgcolor: "#DE7001",
+                                                        color: "white",
+                                                        fontWeight: 600,
+                                                        fontSize: "0.75rem",
+                                                    }}
+                                                />
+                                            </Box>
+                                        )}
+
                                         {/* Location */}
                                         {booking.listingData?.address && (
                                             <Box sx={{ display: "flex", alignItems: "flex-start", gap: 0.5, mb: 2 }}>
@@ -555,13 +780,23 @@ export default function MyBookings() {
                                             </Typography>
                                         </Box>
 
-                                        {/* Booked Date */}
-                                        <Typography variant="body2" color="text.secondary" sx={{ mb: 3, fontSize: "0.85rem" }}>
-                                            Booked on {formatDate(booking.createdAt)}
-                                        </Typography>
+                                        {/* Booked Date and Total Amount */}
+                                        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 3 }}>
+                                            <Typography variant="body2" color="text.secondary" sx={{ fontSize: "0.85rem" }}>
+                                                Booked on {formatDate(booking.createdAt)}
+                                            </Typography>
+                                            <Box sx={{ textAlign: "right" }}>
+                                                <Typography variant="body2" sx={{ fontSize: "0.90rem", color: "#666", mb: 0.5 }}>
+                                                    Total
+                                                </Typography>
+                                                <Typography variant="h5" sx={{ fontSize: "1.8rem", fontWeight: 700, color: "#DE7001" }}>
+                                                    ₱{(booking.amount || booking.totalAmount || 0).toLocaleString()}
+                                                </Typography>
+                                            </Box>
+                                        </Box>
 
                                         {/* Action Buttons */}
-                                        <Box sx={{ display: "flex", gap: 2, mt: "auto" }}>
+                                        <Box sx={{ display: "flex", gap: 2 }}>
                                             <Button
                                                 variant="contained"
                                                 onClick={() => handleViewDetails(booking)}
@@ -580,13 +815,14 @@ export default function MyBookings() {
                                             >
                                                 View Details
                                             </Button>
-                                            {/* Show cancel button only if not cancelled and not confirmed */}
+                                            {/* Show cancel button only if not cancelled/refunded and not confirmed */}
                                             {booking.paymentStatus !== "cancelled" && 
+                                             booking.paymentStatus !== "refunded" && 
                                              booking.paymentTransferred !== true && 
                                              !booking.confirmedAt && (
                                                 <Button
                                                     variant="contained"
-                                                    onClick={() => handleCancelBooking(booking.id)}
+                                                    onClick={() => handleOpenCancelModal(booking.id)}
                                                     fullWidth
                                                     sx={{
                                                         bgcolor: "#2c2c2c",
@@ -730,6 +966,164 @@ export default function MyBookings() {
                         </Box>
                     )}
                 </DialogContent>
+            </Dialog>
+
+            {/* Cancellation Reason Modal */}
+            <Dialog 
+                open={cancelModalOpen} 
+                onClose={handleCloseCancelModal}
+                maxWidth="sm"
+                fullWidth
+                PaperProps={{
+                    sx: {
+                        borderRadius: 3,
+                        p: 1
+                    }
+                }}
+            >
+                <DialogTitle sx={{ 
+                    display: 'flex', 
+                    justifyContent: 'space-between', 
+                    alignItems: 'center',
+                    pb: 1
+                }}>
+                    <Typography variant="h6" sx={{ fontWeight: 600, color: '#30410D' }}>
+                        Cancel Booking
+                    </Typography>
+                    <IconButton onClick={handleCloseCancelModal} size="small">
+                        <CloseIcon />
+                    </IconButton>
+                </DialogTitle>
+                
+                <DialogContent sx={{ pt: 2 }}>
+                    {bookingToCancel && (
+                        <Box sx={{ mb: 3 }}>
+                            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                                You are cancelling:
+                            </Typography>
+                            <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 0.5 }}>
+                                {bookingToCancel.listingTitle}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                                Check-in: {bookingToCancel.bookingDates?.start?.toDate?.()?.toLocaleDateString() || 'N/A'}
+                            </Typography>
+                        </Box>
+                    )}
+
+                    <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 600 }}>
+                        Please select a reason for cancellation:
+                    </Typography>
+                    
+                    <FormControl component="fieldset" fullWidth>
+                        <RadioGroup
+                            value={cancellationReason}
+                            onChange={(e) => setCancellationReason(e.target.value)}
+                        >
+                            <FormControlLabel 
+                                value="Change of plans" 
+                                control={<Radio sx={{ color: '#30410D', '&.Mui-checked': { color: '#30410D' } }} />} 
+                                label="Change of plans"
+                                sx={{ mb: 1 }}
+                            />
+                            <FormControlLabel 
+                                value="Found a better accommodation" 
+                                control={<Radio sx={{ color: '#30410D', '&.Mui-checked': { color: '#30410D' } }} />} 
+                                label="Found a better accommodation"
+                                sx={{ mb: 1 }}
+                            />
+                            <FormControlLabel 
+                                value="Travel dates changed" 
+                                control={<Radio sx={{ color: '#30410D', '&.Mui-checked': { color: '#30410D' } }} />} 
+                                label="Travel dates changed"
+                                sx={{ mb: 1 }}
+                            />
+                            <FormControlLabel 
+                                value="Emergency or unexpected circumstances" 
+                                control={<Radio sx={{ color: '#30410D', '&.Mui-checked': { color: '#30410D' } }} />} 
+                                label="Emergency or unexpected circumstances"
+                                sx={{ mb: 1 }}
+                            />
+                            <FormControlLabel 
+                                value="Price too high" 
+                                control={<Radio sx={{ color: '#30410D', '&.Mui-checked': { color: '#30410D' } }} />} 
+                                label="Price too high"
+                                sx={{ mb: 1 }}
+                            />
+                            <FormControlLabel 
+                                value="Booked by mistake" 
+                                control={<Radio sx={{ color: '#30410D', '&.Mui-checked': { color: '#30410D' } }} />} 
+                                label="Booked by mistake"
+                                sx={{ mb: 1 }}
+                            />
+                            <FormControlLabel 
+                                value="other" 
+                                control={<Radio sx={{ color: '#30410D', '&.Mui-checked': { color: '#30410D' } }} />} 
+                                label="Other (please specify)"
+                            />
+                        </RadioGroup>
+                    </FormControl>
+
+                    {cancellationReason === 'other' && (
+                        <TextField
+                            fullWidth
+                            multiline
+                            rows={3}
+                            placeholder="Please provide details for your cancellation..."
+                            value={otherReason}
+                            onChange={(e) => setOtherReason(e.target.value)}
+                            sx={{ 
+                                mt: 2,
+                                '& .MuiOutlinedInput-root': {
+                                    '&.Mui-focused fieldset': {
+                                        borderColor: '#30410D',
+                                    }
+                                }
+                            }}
+                        />
+                    )}
+
+                    <Box sx={{ 
+                        mt: 3, 
+                        p: 2, 
+                        bgcolor: '#fff3cd', 
+                        borderRadius: 2,
+                        border: '1px solid #ffc107'
+                    }}>
+                        <Typography variant="body2" sx={{ color: '#856404' }}>
+                            <strong>Note:</strong> Your payment will be refunded to your PayPal account within 24 hours after cancellation.
+                        </Typography>
+                    </Box>
+                </DialogContent>
+
+                <DialogActions sx={{ px: 3, pb: 3, pt: 2 }}>
+                    <Button 
+                        onClick={handleCloseCancelModal}
+                        sx={{ 
+                            textTransform: 'none',
+                            color: '#666'
+                        }}
+                    >
+                        Go Back
+                    </Button>
+                    <Button 
+                        onClick={handleCancelBooking}
+                        variant="contained"
+                        disabled={!cancellationReason}
+                        sx={{
+                            bgcolor: '#d32f2f',
+                            textTransform: 'none',
+                            px: 3,
+                            '&:hover': {
+                                bgcolor: '#b71c1c'
+                            },
+                            '&:disabled': {
+                                bgcolor: '#ccc'
+                            }
+                        }}
+                    >
+                        Proceed with Cancellation
+                    </Button>
+                </DialogActions>
             </Dialog>
 
             {/* Listing Modal */}

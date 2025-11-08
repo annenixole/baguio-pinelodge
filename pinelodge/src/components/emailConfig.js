@@ -10,6 +10,11 @@ export const emailConfig = {
   bookingCancellationGuestTemplateId: "template_przs9mo",
   bookingCancellationHostTemplateId: "template_ra6w4ni",
   cancellationPublicKey: "c_0p3uSrynWtdnLSP", // Add the public key from new account
+
+  //Booking Confirmation
+  bookingConfirmationServiceId: "service_u6nm9dq",
+  bookingConfirmationTemplateId: "template_4dqlw1t",
+  bookingConfirmationPublicKey: "cjDtInZXGrHoJMsBA", // Main account public key
   
   // Reset Password Service (same as cancellation for now)
   resetPasswordServiceId: "service_of6bpcr",
@@ -146,6 +151,50 @@ export const sendBookingRejectionEmail = async (guestEmail, guestName, bookingNa
     return { success: true, response };
   } catch (error) {
     console.error('❌ Failed to send booking rejection email:', error);
+    console.error('Error details:', {
+      message: error.message,
+      text: error.text,
+      status: error.status,
+      name: error.name
+    });
+    
+    return { success: false, error: error.message || error.text };
+  }
+};
+
+// Send booking confirmation email to guest (when host confirms)
+export const sendBookingConfirmationEmail = async (guestEmail, guestName, bookingTitle, checkInDate, checkOutDate, totalAmount) => {
+  try {
+    const emailjs = await import('@emailjs/browser');
+    
+    const templateParams = {
+      email: guestEmail,
+      username: guestName,
+      booking_title: bookingTitle,
+      check_in_date: checkInDate,
+      check_out_date: checkOutDate,
+      total_amount: totalAmount,
+    };
+
+    console.log('📧 Sending booking confirmation email with params:', {
+      serviceId: emailConfig.bookingConfirmationServiceId,
+      templateId: emailConfig.bookingConfirmationTemplateId,
+      publicKey: emailConfig.bookingConfirmationPublicKey,
+      templateParams
+    });
+
+    const response = await emailjs.send(
+      emailConfig.bookingConfirmationServiceId,
+      emailConfig.bookingConfirmationTemplateId,
+      templateParams,
+      emailConfig.bookingConfirmationPublicKey
+    );
+
+    console.log('✅ Booking confirmation email sent successfully:', response);
+    console.log('📬 Confirmation email delivered to:', guestEmail);
+    return { success: true, response };
+  } catch (error) {
+    console.error('❌ Failed to send booking confirmation email:', error);
     console.error('Error details:', {
       message: error.message,
       text: error.text,

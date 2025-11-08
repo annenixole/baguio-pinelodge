@@ -29,10 +29,10 @@ import SearchIcon from "@mui/icons-material/Search";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import ProfileMenu from "./ProfileMenu";
 import ListingModal from "./ListingModal";
-import { collection, query, where, getDocs, doc, getDoc, updateDoc, addDoc, orderBy, limit } from "firebase/firestore";
+import { collection, query, where, getDocs, doc, getDoc, updateDoc, addDoc, orderBy, limit, serverTimestamp } from "firebase/firestore";
 import { db, auth } from "../firebase";
 import Swal from "sweetalert2";
-import { sendBookingRejectionEmail } from "../emailConfig";
+import { sendBookingRejectionEmail, sendBookingConfirmationEmail } from "../emailConfig";
 
 export default function ManageBookings({ onProfileSettingsClick }) {
     const [bookings, setBookings] = useState([]);
@@ -494,6 +494,7 @@ export default function ManageBookings({ onProfileSettingsClick }) {
                     const guestBookingRef = doc(db, "users", booking.guestEmail, "bookings", booking.bookingId);
                     console.log("📝 Updating guest booking...");
                     console.log("📝 Guest booking data to update:", {
+                        paymentStatus: "confirmed",
                         confirmedAt: new Date(),
                         paymentTransferred: true,
                         payoutBatchId: payoutResult.payoutId,
@@ -501,13 +502,14 @@ export default function ManageBookings({ onProfileSettingsClick }) {
                         payoutDate: new Date(),
                     });
                     await updateDoc(guestBookingRef, {
+                        paymentStatus: "confirmed",
                         confirmedAt: new Date(),
                         paymentTransferred: true,
                         payoutBatchId: payoutResult.payoutId,
                         payoutStatus: payoutResult.status,
                         payoutDate: new Date(),
                     });
-                    console.log("✅ Guest booking updated");
+                    console.log("✅ Guest booking updated with confirmed status");
                 }
 
                 // Update host's booking record
@@ -530,6 +532,39 @@ export default function ManageBookings({ onProfileSettingsClick }) {
                 console.log("✅ Host booking updated");
                 console.log("✅ Payment transfer recorded");
 
+                // Send confirmation email to guest
+                console.log("📧 Sending confirmation email to guest...");
+                Swal.update({
+                    html: "Sending confirmation email to guest...",
+                });
+
+                const bookingTitle = booking.listingTitle || booking.listingData?.title || "your booking";
+                const guestName = booking.guestEmail?.split("@")[0] || "Guest";
+                const checkInDate = formatDate(booking.bookingDates?.start);
+                const checkOutDate = formatDate(booking.bookingDates?.end);
+                const totalAmount = `₱${booking.amount?.toLocaleString() || "0"}`;
+
+                try {
+                    const emailResult = await sendBookingConfirmationEmail(
+                        booking.guestEmail,
+                        guestName,
+                        bookingTitle,
+                        checkInDate,
+                        checkOutDate,
+                        totalAmount
+                    );
+
+                    if (emailResult.success) {
+                        console.log("✅ Confirmation email sent successfully");
+                    } else {
+                        console.warn("⚠️ Email sending failed:", emailResult.error);
+                        // Continue even if email fails
+                    }
+                } catch (emailError) {
+                    console.error("❌ Error sending confirmation email:", emailError);
+                    // Continue even if email fails
+                }
+
                 Swal.fire({
                     icon: "success",
                     title: "Booking Confirmed!",
@@ -540,6 +575,9 @@ export default function ManageBookings({ onProfileSettingsClick }) {
                         </p>
                         <p style="color: #666; font-size: 0.9em; margin-top: 8px;">
                             Payout Batch ID: ${payoutResult.payoutId}
+                        </p>
+                        <p style="color: #70873F; font-size: 0.9em; margin-top: 8px;">
+                            📧 Guest has been notified via email.
                         </p>
                     `,
                     confirmButtonColor: "#30410D",
@@ -733,15 +771,115 @@ export default function ManageBookings({ onProfileSettingsClick }) {
             const guestName = booking.guestEmail?.split("@")[0] || "Guest";
             const totalPayable = `₱${booking.amount?.toLocaleString() || "0"}`;
 
+            // 💰 Process PayPal Refund
+            let refundSuccess = false;
+            let refundId = null;
+
+            console.log('🔍 Checking refund eligibility:');
+            console.log('  - paypalTransactionId:', booking.paypalTransactionId);
+            console.log('  - paymentStatus:', booking.paymentStatus);
+            console.log('  - amount:', booking.amount || booking.totalAmount);
+
+            if (booking.paypalTransactionId) {
+                try {
+                    console.log('💸 Processing PayPal refund...');
+                    Swal.update({
+                        html: "Processing PayPal refund...",
+                    });
+
+                    // PayPal credentials
+                    const PAYPAL_CLIENT_ID = "AS3N5e6j5mD8MZwH8V2rJOru1tmZbQHcid1nob6gTAUdKDzPb1YnWSGXam1ZC7JIQdM3TQT2gY1YAzdf";
+                    const PAYPAL_SECRET = "EFWGpjDlX0vv2Q5494kQO1QTjqdzvW1FYvtf26JW_p_AnPmuZSnWJxXl2ryR6Mequ-rswCHsG8HFC1Gh";
+                    const PAYPAL_API_BASE = "https://api-m.sandbox.paypal.com";
+
+                    // 1. Get PayPal access token
+                    console.log('🔐 Getting PayPal access token...');
+                    const authString = btoa(`${PAYPAL_CLIENT_ID}:${PAYPAL_SECRET}`);
+                    const tokenResponse = await fetch(`${PAYPAL_API_BASE}/v1/oauth2/token`, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Basic ${authString}`,
+                            'Content-Type': 'application/x-www-form-urlencoded'
+                        },
+                        body: 'grant_type=client_credentials'
+                    });
+
+                    const tokenData = await tokenResponse.json();
+                    const accessToken = tokenData.access_token;
+
+                    if (!accessToken) {
+                        console.error('❌ No access token received:', tokenData);
+                        throw new Error('Failed to get PayPal access token');
+                    }
+
+                    console.log('✅ Access token received');
+
+                    // 2. Process refund via PayPal API
+                    const refundAmount = parseFloat(booking.amount || booking.totalAmount).toFixed(2);
+                    const refundCurrency = booking.currency || 'PHP';
+
+                    console.log(`💰 Requesting refund: ${refundCurrency} ${refundAmount}`);
+                    console.log(`🎫 Capture ID: ${booking.paypalTransactionId}`);
+
+                    const refundResponse = await fetch(
+                        `${PAYPAL_API_BASE}/v2/payments/captures/${booking.paypalTransactionId}/refund`,
+                        {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${accessToken}`
+                            },
+                            body: JSON.stringify({
+                                amount: {
+                                    value: refundAmount,
+                                    currency_code: refundCurrency
+                                },
+                                note_to_payer: `Refund for rejected booking by host`
+                            })
+                        }
+                    );
+
+                    const refundData = await refundResponse.json();
+
+                    console.log('📨 PayPal Response:', refundData);
+                    console.log('📊 Response Status:', refundResponse.status);
+
+                    if (refundResponse.ok && refundData.id) {
+                        refundSuccess = true;
+                        refundId = refundData.id;
+                        console.log('✅ REFUND SUCCESSFUL!');
+                        console.log('✅ Refund ID:', refundId);
+                        console.log('✅ Amount refunded:', refundData.amount?.value, refundData.amount?.currency_code);
+                        console.log('✅ Status:', refundData.status);
+                    } else {
+                        console.error('❌ REFUND FAILED!');
+                        console.error('❌ Status Code:', refundResponse.status);
+                        console.error('❌ Error Details:', refundData);
+                    }
+
+                } catch (refundError) {
+                    console.error('❌ REFUND ERROR:', refundError);
+                    console.error('❌ Error details:', refundError.message);
+                }
+            } else {
+                console.warn('⚠️ No PayPal transaction ID found - skipping refund');
+            }
+
             // 1. Update guest's booking record (use bookingId if available, otherwise use id)
             const guestBookingId = booking.bookingId || booking.id;
             const guestBookingRef = doc(db, "users", booking.guestEmail, "bookings", guestBookingId);
-            console.log("📝 Updating guest booking status to cancelled...");
+            console.log("📝 Updating guest booking status...");
             console.log("📝 Guest booking path:", `users/${booking.guestEmail}/bookings/${guestBookingId}`);
+            
+            Swal.update({
+                html: "Updating booking status...",
+            });
             
             try {
                 await updateDoc(guestBookingRef, {
-                    paymentStatus: "cancelled",
+                    paymentStatus: refundSuccess ? "refunded" : "cancelled",
+                    refundId: refundId || null,
+                    refundedAt: refundSuccess ? new Date() : null,
                     rejectedAt: new Date(),
                     rejectedBy: userEmail,
                 });
@@ -827,16 +965,7 @@ export default function ManageBookings({ onProfileSettingsClick }) {
                 // Continue even if availability restoration fails
             }
 
-            // 4. Process PayPal refund to guest - DISABLED
-            // console.log("💸 Processing PayPal refund to guest...");
-            // Swal.update({
-            //     html: "Processing refund to guest's PayPal account...",
-            // });
-
-            let refundSuccess = false;
-            let refundError = "Manual refund required";
-
-            // 5. Create notification for guest
+            // 4. Create notification for guest
             console.log("🔔 Creating notification for guest...");
             try {
                 // Try to get the guest's UID from the booking data first
@@ -884,7 +1013,6 @@ export default function ManageBookings({ onProfileSettingsClick }) {
                     listingType: booking.listingType,
                     amount: booking.amount,
                     checkInDate: checkInDate,
-                    refunded: refundSuccess,
                     createdAt: new Date(),
                     read: false,
                 });
@@ -915,39 +1043,36 @@ export default function ManageBookings({ onProfileSettingsClick }) {
                 // Continue even if email fails
             }
 
-            // 7. Show success message
-            const successIcon = refundSuccess ? "success" : "warning";
-            const successTitle = refundSuccess ? "Booking Rejected & Refunded" : "Booking Rejected";
-            let successMessage = `<p>The booking has been rejected and cancelled.</p>
-                <p style="color: #70873F; font-size: 0.9em; margin-top: 8px;">📅 Calendar availability has been restored.</p>`;
-            
+            // 5. Show success message with refund info
             if (refundSuccess) {
-                successMessage += `
-                    <p style="color: #70873F; font-weight: 600; margin-top: 12px;">
-                        ✅ Payment of ${totalPayable} has been refunded to the guest's PayPal account.
-                    </p>
-                    <p style="color: #666; font-size: 0.9em; margin-top: 8px;">
-                        The guest will receive an email notification.
-                    </p>
-                `;
+                Swal.fire({
+                    icon: "success",
+                    title: "Booking Rejected & Refunded",
+                    html: `
+                        <p>The booking has been rejected and cancelled.</p>
+                        <p style="color: #70873F; font-weight: 600; margin-top: 12px;">
+                            ✅ Refund of ₱${parseFloat(booking.amount || booking.totalAmount).toLocaleString()} has been processed.
+                        </p>
+                        <p style="color: #666; font-size: 0.9em; margin-top: 8px;">
+                            The refund will be sent to the guest's PayPal account within 3-5 business days.
+                        </p>
+                        <p style="color: #70873F; font-size: 0.9em; margin-top: 8px;">📅 Calendar availability has been restored.</p>
+                        <p style="color: #666; font-size: 0.9em; margin-top: 4px;">The guest has been notified via email.</p>
+                    `,
+                    confirmButtonColor: "#30410D",
+                });
             } else {
-                successMessage += `
-                    <p style="color: #f57c00; font-weight: 600; margin-top: 12px;">
-                        ⚠️ ${refundError || "Refund could not be processed automatically."}
-                    </p>
-                    <p style="color: #666; font-size: 0.9em; margin-top: 8px;">
-                        Please process the refund of ${totalPayable} manually through PayPal.
-                        The guest has been notified via email.
-                    </p>
-                `;
+                Swal.fire({
+                    icon: "success",
+                    title: "Booking Rejected",
+                    html: `
+                        <p>The booking has been rejected and cancelled.</p>
+                        <p style="color: #70873F; font-size: 0.9em; margin-top: 8px;">📅 Calendar availability has been restored.</p>
+                        <p style="color: #666; font-size: 0.9em; margin-top: 8px;">The guest has been notified via email.</p>
+                    `,
+                    confirmButtonColor: "#30410D",
+                });
             }
-
-            Swal.fire({
-                icon: successIcon,
-                title: successTitle,
-                html: successMessage,
-                confirmButtonColor: "#30410D",
-            });
 
             console.log("✅ Booking rejection complete!");
 

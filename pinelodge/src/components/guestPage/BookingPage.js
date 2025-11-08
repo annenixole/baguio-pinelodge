@@ -1,10 +1,11 @@
-import { Box, Typography, Button, Card, CardContent, Divider, Avatar, Grid, Stack, IconButton, Dialog, DialogTitle, DialogContent, TextField, Chip, } from "@mui/material";
+import { Box, Typography, Button, Card, CardContent, Divider, Avatar, Grid, Stack, IconButton, Dialog, DialogTitle, DialogContent, TextField, Chip, Switch } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import LocationOnIcon from "@mui/icons-material/LocationOn";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import CloseIcon from "@mui/icons-material/Close";
 import LocalOfferIcon from "@mui/icons-material/LocalOffer";
 import NavbarGuest from "./NavbarGuest";
+import Footer from "../Footer";
 import { useLocation, useNavigate } from "react-router-dom";
 import StarIcon from "@mui/icons-material/Star";
 import PeopleIcon from "@mui/icons-material/People";
@@ -42,6 +43,10 @@ export default function BookingPage() {
     // Arrival time selection
     const [showTimePicker, setShowTimePicker] = useState(false);
     const [selectedTime, setSelectedTime] = useState("");
+    
+    // Rewards
+    const [redeemRewards, setRedeemRewards] = useState(false);
+    const availableRewards = 0; // To be implemented later
 
     // Fetch listing from URL parameter if not in state
     useEffect(() => {
@@ -776,7 +781,7 @@ export default function BookingPage() {
     };
 
     return (
-        <>
+        <Box sx={{ backgroundColor: "#fffdf3ff", minHeight: "100vh" }}>
             <NavbarGuest />
             
             {/* Share Link Banner */}
@@ -1902,6 +1907,26 @@ export default function BookingPage() {
                                         </Box>
                                     </Card>
                                 )}
+                                
+                                {/* Redeem Rewards Toggle */}
+                                <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mt: 2, mb: 1 }}>
+                                    <Typography sx={{ fontSize: "0.95rem", fontWeight: 500, color: "#333" }}>
+                                        Redeem rewards ({availableRewards} pts)
+                                    </Typography>
+                                    <Switch
+                                        checked={redeemRewards}
+                                        onChange={(e) => setRedeemRewards(e.target.checked)}
+                                        sx={{
+                                            '& .MuiSwitch-switchBase.Mui-checked': {
+                                                color: '#30410D',
+                                            },
+                                            '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                                                backgroundColor: '#70873F',
+                                            },
+                                        }}
+                                    />
+                                </Box>
+                                
                                 {/* ✅ Total Payment Section */}
                                 <Divider sx={{ my: 3 }} />
                                 <Box>
@@ -2318,64 +2343,102 @@ export default function BookingPage() {
                         {/* Horizontal Line before Total Amount */}
                         <Divider sx={{ my: 2 }} />
                         
-                        {/* Show original price and discount if promo is applied */}
+                        {/* Show original price */}
+                        <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
+                            <Typography sx={{ color: "#666", fontSize: "0.95rem" }}>
+                                {isPromoApplied ? "Original Price" : "Price"}
+                            </Typography>
+                            <Typography sx={{ 
+                                fontWeight: 600, 
+                                color: isPromoApplied ? "#999" : "#333", 
+                                fontSize: "0.95rem", 
+                                textDecoration: isPromoApplied ? "line-through" : "none" 
+                            }}>
+                                ₱{(() => {
+                                    const originalPrice = price || 0;
+                                    const guests = parseInt(savedBookingInfo.guests) || 0;
+                                    if (type === "accommodation") {
+                                        if (savedBookingRange && savedBookingRange.length === 2) {
+                                            const [start, end] = savedBookingRange;
+                                            const nights = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+                                            return (originalPrice * (nights > 0 ? nights : 1)).toLocaleString();
+                                        }
+                                        return originalPrice.toLocaleString();
+                                    } else {
+                                        return (originalPrice * (guests > 0 ? guests : 1)).toLocaleString();
+                                    }
+                                })()}
+                            </Typography>
+                        </Box>
+                        
+                        {/* Show discount if promo is applied */}
                         {isPromoApplied && promotion?.actualDiscountedPrice && (
-                            <>
-                                <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
-                                    <Typography sx={{ color: "#666", fontSize: "0.95rem" }}>Original Price</Typography>
-                                    <Typography sx={{ fontWeight: 600, color: "#999", fontSize: "0.95rem", textDecoration: "line-through" }}>
-                                        ₱{(() => {
-                                            const originalPrice = price || 0;
-                                            const guests = parseInt(savedBookingInfo.guests) || 0;
-                                            if (type === "accommodation") {
-                                                if (savedBookingRange && savedBookingRange.length === 2) {
-                                                    const [start, end] = savedBookingRange;
-                                                    const nights = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
-                                                    return (originalPrice * (nights > 0 ? nights : 1)).toLocaleString();
-                                                }
-                                                return originalPrice.toLocaleString();
+                            <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1.5 }}>
+                                <Typography sx={{ color: "#30410D", fontSize: "0.95rem", fontWeight: 600 }}>Discount</Typography>
+                                <Typography sx={{ fontWeight: 700, color: "#30410D", fontSize: "0.95rem" }}>
+                                    -₱{(() => {
+                                        const originalPrice = price || 0;
+                                        const discountedPrice = Number(promotion.actualDiscountedPrice);
+                                        const guests = parseInt(savedBookingInfo.guests) || 0;
+                                        let originalTotal = 0;
+                                        let discountedTotal = 0;
+                                        
+                                        if (type === "accommodation") {
+                                            if (savedBookingRange && savedBookingRange.length === 2) {
+                                                const [start, end] = savedBookingRange;
+                                                const nights = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+                                                originalTotal = originalPrice * (nights > 0 ? nights : 1);
+                                                discountedTotal = discountedPrice * (nights > 0 ? nights : 1);
                                             } else {
-                                                return (originalPrice * (guests > 0 ? guests : 1)).toLocaleString();
+                                                originalTotal = originalPrice;
+                                                discountedTotal = discountedPrice;
                                             }
-                                        })()}
-                                    </Typography>
-                                </Box>
-                                <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1.5 }}>
-                                    <Typography sx={{ color: "#30410D", fontSize: "0.95rem", fontWeight: 600 }}>Discount</Typography>
-                                    <Typography sx={{ fontWeight: 700, color: "#30410D", fontSize: "0.95rem" }}>
-                                        -₱{(() => {
-                                            const originalPrice = price || 0;
-                                            const discountedPrice = Number(promotion.actualDiscountedPrice);
-                                            const guests = parseInt(savedBookingInfo.guests) || 0;
-                                            let originalTotal = 0;
-                                            let discountedTotal = 0;
-                                            
-                                            if (type === "accommodation") {
-                                                if (savedBookingRange && savedBookingRange.length === 2) {
-                                                    const [start, end] = savedBookingRange;
-                                                    const nights = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
-                                                    originalTotal = originalPrice * (nights > 0 ? nights : 1);
-                                                    discountedTotal = discountedPrice * (nights > 0 ? nights : 1);
-                                                } else {
-                                                    originalTotal = originalPrice;
-                                                    discountedTotal = discountedPrice;
-                                                }
-                                            } else {
-                                                originalTotal = originalPrice * (guests > 0 ? guests : 1);
-                                                discountedTotal = discountedPrice * (guests > 0 ? guests : 1);
-                                            }
-                                            
-                                            return (originalTotal - discountedTotal).toFixed(2);
-                                        })()}
-                                    </Typography>
-                                </Box>
-                            </>
+                                        } else {
+                                            originalTotal = originalPrice * (guests > 0 ? guests : 1);
+                                            discountedTotal = discountedPrice * (guests > 0 ? guests : 1);
+                                        }
+                                        
+                                        return (originalTotal - discountedTotal).toFixed(2);
+                                    })()}
+                                </Typography>
+                            </Box>
                         )}
                         
-                        <Box sx={{ display: "flex", justifyContent: "space-between" }}>
-                            <Typography sx={{ color: "#666", fontSize: "0.95rem", fontWeight: 700 }}>Total Amount</Typography>
-                            <Typography sx={{ fontWeight: 700, color: "#E68600", fontSize: "1.25rem" }}>
+                        {/* Show rewards discount if applied */}
+                        {redeemRewards && availableRewards > 0 && (
+                            <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1.5 }}>
+                                <Typography sx={{ color: "#E68600", fontSize: "0.95rem", fontWeight: 600 }}>Rewards</Typography>
+                                <Typography sx={{ fontWeight: 700, color: "#E68600", fontSize: "0.95rem" }}>
+                                    -₱{availableRewards.toFixed(2)}
+                                </Typography>
+                            </Box>
+                        )}
+                        
+                        <Divider sx={{ my: 1.5 }} />
+                        
+                        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <Typography sx={{ color: "#333", fontSize: "1.1rem", fontWeight: 700 }}>Total Amount</Typography>
+                            <Typography sx={{ fontWeight: 700, color: "#E68600", fontSize: "1.5rem" }}>
                                 ₱{calculateTotalPayment().toLocaleString()}
+                            </Typography>
+                        </Box>
+                        
+                        {/* Show calculation details */}
+                        <Box sx={{ mt: 1, textAlign: "right" }}>
+                            <Typography sx={{ color: "#999", fontSize: "0.8rem" }}>
+                                {(() => {
+                                    if (type === "accommodation" && savedBookingRange && savedBookingRange.length === 2) {
+                                        const [start, end] = savedBookingRange;
+                                        const nights = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+                                        const pricePerNight = isPromoApplied && promotion?.actualDiscountedPrice 
+                                            ? Number(promotion.actualDiscountedPrice) 
+                                            : (price || 0);
+                                        const startDate = start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                                        const endDate = end.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                                        return `${nights} night${nights > 1 ? 's' : ''} x ₱${pricePerNight.toLocaleString()} • ${startDate} - ${endDate}`;
+                                    }
+                                    return isPromoApplied ? 'Rewards' : '';
+                                })()}
                             </Typography>
                         </Box>
                     </Box>
@@ -2403,6 +2466,11 @@ export default function BookingPage() {
                     </Box>
                 </Box>
             </Dialog>
-        </>
+
+            {/* Footer */}
+            <Box sx={{ mt: { xs: 6, md: 8 } }}>
+                <Footer />
+            </Box>
+        </Box>
     );
 }

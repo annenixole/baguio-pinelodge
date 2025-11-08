@@ -5,6 +5,7 @@ import { auth, db } from '../firebase';
 import { doc, getDoc, collectionGroup, getDocs } from 'firebase/firestore';
 import ListingCardGuest from './ListingCardGuest';
 import NavbarGuest from './NavbarGuest';
+import Footer from '../Footer';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import FavoriteBorderIcon from '@mui/icons-material/FavoriteBorder';
 
@@ -141,7 +142,7 @@ export default function Favorites() {
   const currentFavorites = favorites.slice(startIndex, endIndex);
 
   return (
-    <Box sx={{ minHeight: '100vh', bgcolor: '#ffff' }}>
+    <Box sx={{ minHeight: '100vh', bgcolor: '#fffdf3ff' }}>
       {/* Navbar */}
       <NavbarGuest />
 
@@ -312,6 +313,9 @@ export default function Favorites() {
           </Box>
         )}
       </Container>
+
+      {/* Footer */}
+      <Footer />
     </Box>
   );
 }
